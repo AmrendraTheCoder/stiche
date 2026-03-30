@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Stiche — Crochet Business Intelligence Suite</title>
+    <meta name="description" content="India's AI-powered crochet business suite — trend agent, weekly calendar, order tracker, ad copy, ROAS calculator." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div class="logo-wrapper">
+          <div class="logo-glow"></div>
+          <div class="logo">Stiché</div>
+        </div>
+        <p class="tagline">India's AI-Powered Crochet Business Suite</p>
+        <div class="badges">
+          <span class="badge glow-badge">Made in India</span>
+          <span class="badge tag-badge">Trends • Ads • Calendar • Orders</span>
+        </div>
+      </header>
+
+      <!-- TAB BAR -->
+      <nav class="tab-bar" id="tabBar">
+        <button class="tab-btn active" data-tab="trend">Trend Agent</button>
+        <button class="tab-btn" data-tab="calendar">Calendar</button>
+        <button class="tab-btn" data-tab="orders">Orders</button>
+      </nav>
+
+      <!-- ═══ TAB 1: TREND AGENT ═══ -->
+      <div class="tab-panel active" id="panel-trend">
+        <section>
+          <div class="card">
+            <div class="section-label">
+              <span>Configure Agent</span>
+              <label class="auto-tune-bar" title="Automatically fetches your top selling items from past orders to auto-tune the agent.">
+                <input type="checkbox" id="trendAutoPilot">
+                <span class="auto-tune-label">Auto-Tune with Sales</span>
+              </label>
+            </div>
+            <form id="agentForm" class="form-stack">
+              <div class="form-row">
+                <div class="field">
+                  <label class="field-label" for="topic">Topic / Product</label>
+                  <input class="field-input" id="topic" type="text" placeholder="e.g. crochet baby blanket" required />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="niche">Niche</label>
+                  <select class="field-select" id="niche">
+                    <option value="crochet &amp; handmade">Crochet &amp; Handmade</option>
+                    <option value="crochet bags &amp; pouches">Bags &amp; Pouches</option>
+                    <option value="crochet baby &amp; kids wear">Baby &amp; Kids Wear</option>
+                    <option value="amigurumi &amp; crochet toys">Amigurumi &amp; Toys</option>
+                    <option value="crochet home decor">Home Decor</option>
+                    <option value="crochet flowers &amp; bouquets">Flowers &amp; Bouquets</option>
+                    <option value="crochet jewelry &amp; accessories">Jewelry &amp; Accessories</option>
+                    <option value="crochet clothing &amp; wearables">Clothing &amp; Wearables</option>
+                    <option value="crochet gifting &amp; hampers">Gifting &amp; Hampers</option>
+                    <option value="crochet patterns &amp; tutorials">Patterns &amp; Tutorials</option>
+                    <option value="macrame &amp; fiber art">Macrame &amp; Fiber Art</option>
+                    <option value="crochet pet accessories">Pet Accessories</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label class="field-label" for="region">Target State</label>
+                  <select class="field-select" id="region"></select>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="city">City</label>
+                  <select class="field-select" id="city"><option value="">All Cities</option></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label class="field-label" for="hookStyle">Hook Style</label>
+                  <select class="field-select" id="hookStyle">
+                    <option value="curiosity">Curiosity / Mystery</option>
+                    <option value="bold claim">Bold Claim</option>
+                    <option value="question">Question</option>
+                    <option value="story">Storytelling</option>
+                    <option value="shocking stat">Shocking Stat</option>
+                    <option value="relatable">Relatable</option>
+                    <option value="before-after">Before &amp; After</option>
+                    <option value="myth-buster">Myth Buster</option>
+                    <option value="unpopular opinion">Unpopular Opinion</option>
+                    <option value="customer love">Customer Love</option>
+                    <option value="behind the scenes">Behind the Scenes</option>
+                    <option value="list / tips">List / Tips</option>
+                    <option value="seasonal / festive">Seasonal / Festive</option>
+                    <option value="challenge">Challenge / Dare</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="goal">Post Goal</label>
+                  <select class="field-select" id="goal">
+                    <option value="grow followers organically">Grow Followers</option>
+                    <option value="drive DMs for custom orders">Drive DMs for Orders</option>
+                    <option value="get more saves and shares">More Saves &amp; Shares</option>
+                    <option value="announce a sale or offer">Announce Sale / Offer</option>
+                    <option value="launch a new product">Launch New Product</option>
+                    <option value="build brand awareness">Brand Awareness</option>
+                    <option value="drive traffic to shop link">Shop Link Traffic</option>
+                    <option value="increase engagement and comments">Engagement &amp; Comments</option>
+                    <option value="build community and trust">Community &amp; Trust</option>
+                    <option value="educate audience about crochet">Educate About Crochet</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label class="field-label" for="instagramHandle">Instagram Handle (Optional — enables public profile analysis)</label>
+                <div style="position: relative;">
+                  <span style="position: absolute; left: 12px; top: 14px; color: var(--text-muted); font-weight: 500;">@</span>
+                  <input type="text" class="field-input" id="instagramHandle" placeholder="stiche.in" style="padding-left: 32px;" />
+                </div>
+              </div>
+              <div class="field">
+                <label class="field-label">Product Image (optional — enables AI analysis)</label>
+                <div class="upload-zone" id="uploadZone">
+                  <div class="upload-placeholder" id="uploadPlaceholder">
+                    <div class="upload-icon">+</div>
+                    <div class="upload-text">Drag &amp; drop your product image here</div>
+                    <div class="upload-sub">or click to browse · Max 5MB · JPEG, PNG, WebP</div>
+                  </div>
+                  <img class="upload-preview" id="uploadPreview" alt="Preview" />
+                  <button type="button" class="upload-remove" id="uploadRemove">&times;</button>
+                  <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+                </div>
+              </div>
+              <div class="btn-row">
+                <button type="submit" class="btn-primary" id="submitBtn">Run Agent Pipeline</button>
+                <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </section>
+        <div class="error-box" id="errorBox"><div class="error-title">Pipeline Error</div><div class="error-msg" id="errorMessage"></div></div>
+        <div class="loading" id="loadingBox">
+          <div class="card loading-inner">
+            <div class="spinner"></div>
+            <div class="loading-title">Agent is working</div>
+            <div class="loading-sub" id="loadingSub">This takes 30-50 seconds</div>
+            <div class="steps-list" id="stepsList"></div>
+          </div>
+        </div>
+        <div class="results" id="results"></div>
+      </div>
+
+      <!-- ═══ TAB 2: WEEKLY CALENDAR ═══ -->
+      <div class="tab-panel" id="panel-calendar">
+        <section>
+          <div class="card">
+            <div class="section-label">
+              <span>Weekly Content Calendar</span>
+              <label class="auto-tune-bar" title="Automatically build calendar around your top selling items from past orders.">
+                <input type="checkbox" id="calendarAutoPilot">
+                <span class="auto-tune-label">Auto-Pilot</span>
+              </label>
+            </div>
+            <p class="card-desc">Generate a complete 7-day Instagram posting plan. Run this every Sunday morning.</p>
+            <form id="calendarForm" class="form-stack">
+              <div class="field">
+                <label class="field-label" for="calProducts">Products You Sell</label>
+                <input class="field-input" id="calProducts" type="text" placeholder="e.g. baby blankets, amigurumi toys, beanies" required />
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label class="field-label" for="calAudience">Target Audience</label>
+                  <input class="field-input" id="calAudience" type="text" placeholder="e.g. new moms, gift shoppers" />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="calVoice">Brand Voice</label>
+                  <select class="field-select" id="calVoice">
+                    <option value="warm, personal, like a friend">Warm &amp; Friendly</option>
+                    <option value="professional, clean, minimal">Professional</option>
+                    <option value="fun, quirky, playful">Fun &amp; Quirky</option>
+                    <option value="luxury, premium, aspirational">Luxury / Premium</option>
+                    <option value="educational, helpful, expert">Educational / Expert</option>
+                    <option value="emotional, heartfelt, storytelling">Emotional / Storytelling</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label class="field-label" for="calRegion">State</label>
+                  <select class="field-select" id="calRegion"></select>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="calCity">City</label>
+                  <select class="field-select" id="calCity"><option value="">All Cities</option></select>
+                </div>
+              </div>
+              <div class="field">
+                <label class="field-label" for="calPrice">Price Range</label>
+                <input class="field-input" id="calPrice" type="text" placeholder="e.g. ₹500-₹2500" />
+              </div>
+              <div class="btn-row">
+                <button type="submit" class="btn-primary" id="calSubmitBtn">Generate Weekly Calendar</button>
+              </div>
+            </form>
+          </div>
+        </section>
+        <div class="error-box" id="calErrorBox"><div class="error-title">Calendar Error</div><div class="error-msg" id="calErrorMessage"></div></div>
+        <div class="loading" id="calLoadingBox">
+          <div class="card loading-inner">
+            <div class="spinner"></div>
+            <div class="loading-title">Planning your week</div>
+            <div class="loading-sub">This takes 30-60 seconds</div>
+          </div>
+        </div>
+        <div class="results" id="calResults"></div>
+      </div>
+
+      <!-- ═══ TAB 3: ORDER TRACKER ═══ -->
+      <div class="tab-panel" id="panel-orders">
+        <div class="order-dashboard" id="orderDashboard">
+          <div class="dash-card"><div class="dash-val" id="dashActive">0</div><div class="dash-label">Active</div></div>
+          <div class="dash-card"><div class="dash-val" id="dashRevenue">₹0</div><div class="dash-label">This Month</div></div>
+          <div class="dash-card"><div class="dash-val" id="dashPending">₹0</div><div class="dash-label">Pending</div></div>
+          <div class="dash-card"><div class="dash-val" id="dashDueWeek">0</div><div class="dash-label">Due This Week</div></div>
+        </div>
+        <div class="order-actions">
+          <button class="btn-primary" id="addOrderBtn" onclick="openOrderModal()">+ Add Order</button>
+          <button class="btn-action secondary" id="exportCsvBtn" onclick="exportCSV()">Export CSV</button>
+          <input class="field-input order-search" id="orderSearch" type="text" placeholder="Search orders..." oninput="renderOrders()" />
+        </div>
+        <div class="order-filter-bar" id="orderFilterBar">
+          <button class="filter-chip active" data-filter="all" onclick="setFilter('all')">All</button>
+          <button class="filter-chip" data-filter="New" onclick="setFilter('New')">New</button>
+          <button class="filter-chip" data-filter="Making" onclick="setFilter('Making')">Making</button>
+          <button class="filter-chip" data-filter="Packed" onclick="setFilter('Packed')">Packed</button>
+          <button class="filter-chip" data-filter="Shipped" onclick="setFilter('Shipped')">Shipped</button>
+          <button class="filter-chip" data-filter="Delivered" onclick="setFilter('Delivered')">Delivered</button>
+        </div>
+        <div class="order-list" id="orderList"></div>
+      </div>
+
+      <!-- ORDER MODAL -->
+      <div class="modal-overlay" id="orderModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="modal-title" id="modalTitle">Add New Order</h3>
+            <button class="modal-close" onclick="closeOrderModal()">&times;</button>
+          </div>
+          <form id="orderForm" class="form-stack" onsubmit="saveOrder(event)">
+            <input type="hidden" id="orderId" />
+            <div class="form-row">
+              <div class="field"><label class="field-label" for="orderName">Customer Name</label><input class="field-input" id="orderName" required /></div>
+              <div class="field"><label class="field-label" for="orderContact">WhatsApp / Instagram</label><input class="field-input" id="orderContact" placeholder="@handle or phone" /></div>
+            </div>
+            <div class="form-row">
+              <div class="field"><label class="field-label" for="orderItem">Item Ordered</label><input class="field-input" id="orderItem" required /></div>
+              <div class="field"><label class="field-label" for="orderPrice">Price (₹)</label><input class="field-input" id="orderPrice" type="number" required /></div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label class="field-label" for="orderPayment">Payment</label>
+                <select class="field-select" id="orderPayment"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select>
+              </div>
+              <div class="field"><label class="field-label" for="orderDelivery">Delivery Date</label><input class="field-input" id="orderDelivery" type="date" required /></div>
+            </div>
+            <div class="field"><label class="field-label" for="orderNotes">Notes</label><input class="field-input" id="orderNotes" placeholder="Color preference, gift wrapping, etc." /></div>
+            <div class="btn-row"><button type="submit" class="btn-primary">Save Order</button></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- WHATSAPP MESSAGE MODAL -->
+      <div class="modal-overlay" id="whatsappModal">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 class="modal-title">WhatsApp Message</h3>
+            <button class="modal-close" onclick="closeWhatsappModal()">&times;</button>
+          </div>
+          <div class="wa-status-bar" id="waStatusBar"></div>
+          <div class="wa-message-box" id="waMessageBox">
+            <div class="spinner wa-spinner"></div>
+            <div class="wa-message-text" id="waMessageText"></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn-action primary" id="waCopyBtn" onclick="copyWAMessage()">Copy Message</button>
+            <button class="btn-action secondary" onclick="closeWhatsappModal()">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <p class="footer-text">Stiche v3 — Complete Crochet Business Suite — Made in India</p>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="calendar.js"></script>
+    <script src="orders.js"></script>
+  </body>
+</html>
