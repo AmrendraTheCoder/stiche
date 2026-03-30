@@ -25,7 +25,7 @@ function getOpenRouter(): OpenAI {
   return _openrouter;
 }
 
-const SEARCH_MODEL = "claude-haiku-4-5-20251001";
+const SEARCH_MODEL = "claude-3-7-sonnet-20250219";
 const WRITE_MODEL = "claude-3-haiku-20240307";
 
 // ─── UTILITY ────────────────────────────────────────────────────────

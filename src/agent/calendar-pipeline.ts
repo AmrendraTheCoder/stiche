@@ -52,7 +52,7 @@ export async function runCalendarPipeline(input: CalendarInput): Promise<Calenda
   let rawResearch = "";
   try {
     const response = await getAnthropic().messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-3-7-sonnet-20250219",
       max_tokens: 3000,
       tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 3 } as any],
       messages: [{
@@ -124,7 +124,7 @@ RULES:
 - JSON only, no other text.`;
 
     const response = await getAnthropic().messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-3-7-sonnet-20250219",
       max_tokens: 6000,
       messages: [{ role: "user", content: calPrompt }],
     });
