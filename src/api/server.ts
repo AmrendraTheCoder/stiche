@@ -254,3 +254,4 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 export { app };
+export default app;
