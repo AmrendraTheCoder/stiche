@@ -84,7 +84,7 @@ document.getElementById("calendarForm").addEventListener("submit", function(e) {
 
   fetch("/api/run-calendar", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ products: products, audience: audience, region: region, city: city, brandVoice: voice, priceRange: price, useBusinessContext: autoPilot })
   })
   .then(function(res) { return res.json(); })

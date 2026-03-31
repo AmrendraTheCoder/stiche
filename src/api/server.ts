@@ -1,7 +1,8 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs/promises";
+import crypto from "crypto";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { runAgentPipeline } from "../agent/pipeline";
@@ -10,14 +11,78 @@ import { getOrdersCollection } from "../lib/db";
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-// Static files are served by Vercel directly from /public — no express.static needed
+// ── CORS — only allow your own Vercel domain ─────────────────────────
+const ALLOWED_ORIGINS = [
+  "https://sticheshop.vercel.app",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow same-origin (no origin header) and whitelisted origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, true);
+    else cb(new Error("CORS: origin not allowed"));
+  },
+  methods: ["GET", "POST", "DELETE"],
+  allowedHeaders: ["Content-Type", "x-site-key"],
+}));
 
-// ── Rate Limiting ───────────────────────────────────────────────────
+// ── Body size limit — prevent oversized payloads ─────────────────────
+app.use(express.json({ limit: "100kb" }));
+
+// ── Auth middleware — requires X-Site-Key header ──────────────────────
+// Set SITE_KEY in Vercel env vars (any random string you choose).
+// Local dev: if SITE_KEY is not set, auth is skipped entirely.
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const siteKey = process.env.SITE_KEY;
+  if (!siteKey) { next(); return; } // dev mode — no key set, skip
+  const provided = req.headers["x-site-key"] as string | undefined;
+  if (!provided || provided !== siteKey) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
+
+// ── Input sanitization helper ────────────────────────────────────────
+function sanitize(val: unknown, maxLen = 200): string {
+  if (typeof val !== "string") return "";
+  return val
+    .trim()
+    .slice(0, maxLen)
+    // Strip prompt-injection attempts
+    .replace(/ignore (previous|above|all) instructions?/gi, "")
+    .replace(/you are now|act as|system prompt/gi, "");
+}
+
+// ── In-memory result cache (TTL = 6 hours) ───────────────────────────
+// Prevents re-running the full AI pipeline for identical queries.
+interface CacheEntry { data: unknown; expiresAt: number; }
+const resultCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+function cacheKey(obj: Record<string, unknown>): string {
+  return crypto.createHash("sha256").update(JSON.stringify(obj)).digest("hex").slice(0, 16);
+}
+function getCached(key: string): unknown | null {
+  const entry = resultCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { resultCache.delete(key); return null; }
+  return entry.data;
+}
+function setCache(key: string, data: unknown): void {
+  // Evict oldest entry if cache is getting large (>50 entries)
+  if (resultCache.size >= 50) {
+    const oldest = [...resultCache.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0];
+    if (oldest) resultCache.delete(oldest[0]);
+  }
+  resultCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+// ── Rate Limiting ─────────────────────────────────────────────────────
 const agentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 15,
   message: { error: "Too many requests. Please wait 15 minutes before trying again." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -31,7 +96,7 @@ const messageLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// ── Multer ──────────────────────────────────────────────────────────
+// ── Multer ────────────────────────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -44,11 +109,29 @@ const upload = multer({
 // ── POST /api/run-agent ─────────────────────────────────────────────
 app.post(
   "/api/run-agent",
+  requireAuth,
   agentLimiter,
   upload.single("image"),
   async (req: Request, res: Response): Promise<void> => {
-    const { topic, niche, region, city, hookStyle, goal, useBusinessContext } = req.body;
-    if (!topic && !useBusinessContext) { res.status(400).json({ error: "topic is required unless auto-tuning" }); return; }
+    const rawTopic  = sanitize(req.body.topic, 150);
+    const rawNiche  = sanitize(req.body.niche, 100);
+    const rawRegion = sanitize(req.body.region, 80);
+    const rawCity   = sanitize(req.body.city, 80);
+    const rawHook   = sanitize(req.body.hookStyle, 60);
+    const rawGoal   = sanitize(req.body.goal, 100);
+    const useBusinessContext = req.body.useBusinessContext;
+
+    if (!rawTopic && !useBusinessContext) {
+      res.status(400).json({ error: "topic is required unless auto-tuning" }); return;
+    }
+
+    // ── Cache check ──────────────────────────────────────────────────
+    const ck = cacheKey({ rawTopic, rawNiche, rawRegion, rawCity, rawHook, rawGoal });
+    const cached = getCached(ck);
+    if (cached) {
+      console.log("Cache HIT:", ck);
+      res.json({ ok: true, data: cached, cached: true }); return;
+    }
 
     try {
       let imageBase64: string | undefined;
@@ -58,53 +141,76 @@ app.post(
         imageMimeType = req.file.mimetype;
       }
 
-      let businessContext;
+      let businessContext: string | null | undefined;
       if (useBusinessContext === "true" || useBusinessContext === true) {
         businessContext = await buildBusinessContext();
       }
 
       const result = await runAgentPipeline({
-        topic: topic || (businessContext ? "My Shop's Top Selling Items" : "handmade items"), 
-        niche: niche || "crochet & handmade",
-        region: region || "Pan India", city: city || undefined,
-        hookStyle: hookStyle || "curiosity", goal: goal || "grow followers organically",
+        topic: rawTopic || (businessContext ? "My Shop's Top Selling Items" : "handmade items"),
+        niche: rawNiche || "crochet & handmade",
+        region: rawRegion || "Pan India",
+        city: rawCity || undefined,
+        hookStyle: rawHook || "curiosity",
+        goal: rawGoal || "grow followers organically",
         imageBase64, imageMimeType,
-        businessContext: businessContext || undefined
+        businessContext: businessContext || undefined,
       });
+
+      setCache(ck, result);
       res.json({ ok: true, data: result });
     } catch (err: any) {
-      console.error("Pipeline error:", err);
+      console.error("Pipeline error:", err.message);
       res.status(500).json({ error: err.message || "Pipeline failed" });
     }
   },
 );
 
-// ── POST /api/run-calendar ──────────────────────────────────────────
+// ── POST /api/run-calendar ─────────────────────────────────────────
 app.post(
   "/api/run-calendar",
+  requireAuth,
   agentLimiter,
   async (req: Request, res: Response): Promise<void> => {
-    const { products, audience, region, city, brandVoice, priceRange, useBusinessContext } = req.body;
-    if (!products && !useBusinessContext) { res.status(400).json({ error: "products is required unless auto-tuning" }); return; }
+    const rawProducts  = sanitize(req.body.products, 150);
+    const rawAudience  = sanitize(req.body.audience, 150);
+    const rawRegion    = sanitize(req.body.region, 80);
+    const rawCity      = sanitize(req.body.city, 80);
+    const rawVoice     = sanitize(req.body.brandVoice, 100);
+    const rawPrice     = sanitize(req.body.priceRange, 60);
+    const useBusinessContext = req.body.useBusinessContext;
+
+    if (!rawProducts && !useBusinessContext) {
+      res.status(400).json({ error: "products is required unless auto-tuning" }); return;
+    }
+
+    // Cache check
+    const ck = cacheKey({ rawProducts, rawAudience, rawRegion, rawCity, rawVoice, rawPrice });
+    const cached = getCached(ck);
+    if (cached) {
+      res.json({ ok: true, data: cached, cached: true }); return;
+    }
 
     try {
-      let businessContext;
+      let businessContext: string | null | undefined;
       if (useBusinessContext === true) {
         businessContext = await buildBusinessContext();
       }
 
       const result = await runCalendarPipeline({
-        products: products || (businessContext ? "My Current Best Sellers" : ""),
-        audience: audience || "women 20-40 interested in handmade products",
-        region: region || "Pan India",
-        city: city || undefined,
-        brandVoice: brandVoice || "warm, personal, friendly",
-        priceRange: priceRange || "₹500-₹2500",
-        businessContext: businessContext || undefined
+        products: rawProducts || (businessContext ? "My Current Best Sellers" : ""),
+        audience: rawAudience || "women 20-40 interested in handmade products",
+        region: rawRegion || "Pan India",
+        city: rawCity || undefined,
+        brandVoice: rawVoice || "warm, personal, friendly",
+        priceRange: rawPrice || "\u20b9500-\u20b92500",
+        businessContext: businessContext || undefined,
       });
+
+      setCache(ck, result);
       res.json({ ok: true, data: result });
     } catch (err: any) {
-      console.error("Calendar error:", err);
+      console.error("Calendar error:", err.message);
       res.status(500).json({ error: err.message || "Calendar generation failed" });
     }
   },
@@ -113,9 +219,15 @@ app.post(
 // ── POST /api/generate-message ──────────────────────────────────────
 app.post(
   "/api/generate-message",
+  requireAuth,
   messageLimiter,
   async (req: Request, res: Response): Promise<void> => {
-    const { customerName, item, status, language, recentTrends } = req.body;
+    const customerName = sanitize(req.body.customerName, 80);
+    const item        = sanitize(req.body.item, 100);
+    const status      = sanitize(req.body.status, 20);
+    const language    = sanitize(req.body.language, 30);
+    const recentTrends = req.body.recentTrends;
+
     if (!customerName || !item || !status) {
       res.status(400).json({ error: "customerName, item, and status are required" });
       return;

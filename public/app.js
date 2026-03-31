@@ -1,3 +1,20 @@
+// ─── AUTH HELPER ────────────────────────────────────────────────────
+// The SITE_KEY is set once by you in Vercel env vars.
+// In the browser it's stored in localStorage after first prompt.
+// This prevents random people from using your API endpoints.
+function getSiteKey() {
+  var k = localStorage.getItem("stiche_site_key");
+  if (!k) {
+    k = prompt("Enter site access key:") || "";
+    if (k) localStorage.setItem("stiche_site_key", k);
+  }
+  return k || "";
+}
+function apiHeaders(extra) {
+  var h = { "x-site-key": getSiteKey() };
+  return Object.assign(h, extra || {});
+}
+
 // ─── TAB SWITCHING ──────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
@@ -217,7 +234,7 @@ document.getElementById("agentForm").addEventListener("submit", function(e) {
 
   document.getElementById("loadingSub").textContent = hasImage ? "This takes 40-70 seconds (image analysis adds time)" : "This takes 30-50 seconds";
 
-  fetch("/api/run-agent", { method: "POST", body: formData, signal: abortController.signal })
+  fetch("/api/run-agent", { method: "POST", body: formData, headers: apiHeaders(), signal: abortController.signal })
     .then(function(res) { return res.json(); })
     .then(function(json) {
       if (json.error) throw new Error(json.error);

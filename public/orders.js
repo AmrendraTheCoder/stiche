@@ -1,11 +1,14 @@
 // ─── ORDER TRACKER ──────────────────────────────────────────────────
+function getSiteKey() { return localStorage.getItem("stiche_site_key") || ""; }
+function apiHeaders(extra) { return Object.assign({ "x-site-key": getSiteKey() }, extra || {}); }
+
 var orders = [];
 var currentFilter = "all";
 var STATUSES = ["New", "Making", "Packed", "Shipped", "Delivered"];
 
 // Load orders from server
 function loadOrders() {
-  fetch("/api/orders")
+  fetch("/api/orders", { headers: apiHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(json) {
       if (json.ok) {
@@ -162,7 +165,7 @@ function saveOrder(e) {
 
   fetch("/api/orders", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(orderData)
   })
   .then(function(res) { return res.json(); })
@@ -180,7 +183,7 @@ function editOrder(id) { openOrderModal(id); }
 
 function deleteOrder(id) {
   if (!confirm("Delete this order?")) return;
-  fetch("/api/orders/" + id, { method: "DELETE" })
+  fetch("/api/orders/" + id, { method: "DELETE", headers: apiHeaders() })
     .then(function(res) { return res.json(); })
     .then(function(json) {
       if (json.ok) { orders = json.data; renderOrders(); }
@@ -194,7 +197,7 @@ function updateStatus(id, newStatus) {
   
   fetch("/api/orders", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(Object.assign({}, o, { status: newStatus }))
   })
   .then(function(res) { return res.json(); })
@@ -225,7 +228,7 @@ function generateWAMessage(id) {
 
   fetch("/api/generate-message", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ customerName: o.customerName, item: o.item, status: o.status, language: "English", recentTrends: recentTrends })
   })
   .then(function(res) { return res.json(); })
