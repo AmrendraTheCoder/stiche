@@ -552,36 +552,131 @@ function toggleROASFormulas() {
   var el = document.getElementById("roasFormulasContent");
   if (el) el.classList.toggle("active");
 }
-
 // ─── PDF EXPORT ─────────────────────────────────────────────────────
 function exportPDF() {
-  var btn = document.getElementById("exportPdfBtn");
-  if (!btn || !resultData) return;
-  btn.disabled = true;
-  btn.textContent = "Generating PDF...";
+  if (!resultData) return;
+  var d = resultData;
+  var topic  = document.getElementById("topic").value || "Crochet Report";
+  var region = document.getElementById("region").value || "India";
+  var city   = document.getElementById("city").value || "";
+  var dateStr  = new Date().toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" });
+  var location = city ? city + ", " + region : region;
+  var html = "";
 
-  var el = document.getElementById("results");
-  document.body.classList.add("pdf-mode");
+  // Cover page
+  html += '<div class="cover"><div class="cover-logo">Stiche</div><div class="cover-title">' + esc(topic) + '</div><div class="cover-sub">Business Intelligence Report</div><div class="cover-meta">' + esc(location) + ' &nbsp;|&nbsp; ' + dateStr + '</div></div>';
 
-  var opt = {
-    margin: [10, 10, 10, 10],
-    filename: "stiche-report-" + new Date().toISOString().slice(0, 10) + ".pdf",
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: { mode: ["avoid-all", "css", "legacy"] }
-  };
+  // Trends
+  if (d.trends && d.trends.length) {
+    html += '<div class="section"><div class="section-title">Live Market Trends</div><table><tr><th>Trend</th><th>Momentum</th><th>Region</th><th>Insight</th></tr>';
+    d.trends.forEach(function(t) { html += '<tr><td><strong>' + esc(t.trend) + '</strong></td><td><span class="badge badge-' + esc(t.momentum) + '">' + esc(t.momentum) + '</span></td><td>' + esc(t.region) + '</td><td>' + esc(t.why) + '</td></tr>'; });
+    html += '</table></div>';
+  }
+  // Personas
+  if (d.customers && d.customers.length) {
+    html += '<div class="section"><div class="section-title">Customer Personas</div>';
+    d.customers.forEach(function(c) {
+      html += '<div class="persona-block"><div class="persona-name">' + esc(c.name) + ' &mdash; <span class="muted">' + esc(c.ageRange) + '</span>';
+      if (c.buyIntent) html += ' <span class="badge badge-' + esc(c.buyIntent) + '">' + esc(c.buyIntent) + '</span>';
+      html += '</div>';
+      if (c.location) html += '<div class="muted small">' + esc(c.location) + '</div>';
+      if (c.behavior) html += '<div class="sub-text">' + esc(c.behavior) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  // Hooks
+  if (d.hooks && d.hooks.length) {
+    html += '<div class="section"><div class="section-title">Content Hooks</div><ol>';
+    d.hooks.forEach(function(h) { html += '<li>' + esc(h) + '</li>'; });
+    html += '</ol></div>';
+  }
+  // Caption
+  if (d.caption) html += '<div class="section"><div class="section-title">Ready-to-Post Caption</div><div class="caption-box">' + esc(d.caption).replace(/\n/g, '<br>') + '</div></div>';
+  // Hashtags
+  if (d.hashtags && d.hashtags.length) {
+    html += '<div class="section"><div class="section-title">Hashtag Strategy (' + d.hashtags.length + ' tags)</div><div class="tag-cloud">';
+    d.hashtags.forEach(function(t) { html += '<span class="htag">' + esc(t) + '</span>'; });
+    html += '</div></div>';
+  }
+  // Profit
+  if (d.profit) {
+    var p = d.profit;
+    html += '<div class="section"><div class="section-title">Profit Analysis</div><table>';
+    if (p.sellingPrice) html += '<tr><td>Selling Price</td><td><strong>' + esc(String(p.sellingPrice)) + '</strong></td></tr>';
+    if (p.materialCost) html += '<tr><td>Material Cost</td><td>' + esc(String(p.materialCost)) + '</td></tr>';
+    if (p.netProfit)    html += '<tr><td><strong>Net Profit</strong></td><td><strong class="green">' + esc(String(p.netProfit)) + '</strong></td></tr>';
+    if (p.marginPct)    html += '<tr><td>Margin</td><td>' + esc(String(p.marginPct)) + '</td></tr>';
+    if (p.breakEvenQty) html += '<tr><td>Break-Even Qty</td><td>' + esc(String(p.breakEvenQty)) + ' units</td></tr>';
+    html += '</table></div>';
+  }
+  // Ad Copy
+  if (d.adCopy) {
+    var a = d.adCopy;
+    html += '<div class="section"><div class="section-title">Instagram Ad Copy</div>';
+    if (a.headline) html += '<div class="big-text">' + esc(a.headline) + '</div>';
+    if (a.primaryText) html += '<div class="sub-text">' + esc(a.primaryText) + '</div>';
+    if (a.variants && a.variants.length) {
+      a.variants.forEach(function(v, i) { html += '<div class="variant"><strong>Variant ' + (i+1) + ':</strong> ' + esc(v.headline) + '<div class="sub-text">' + esc(v.text) + '</div></div>'; });
+    }
+    html += '</div>';
+  }
+  // ROAS
+  if (d.roas) {
+    var r = d.roas;
+    html += '<div class="section"><div class="section-title">ROAS Calculator</div><table>';
+    if (r.adSpend)       html += '<tr><td>Recommended Ad Spend</td><td>' + esc(String(r.adSpend)) + '</td></tr>';
+    if (r.expectedROAS)  html += '<tr><td>Expected ROAS</td><td><strong>' + esc(String(r.expectedROAS)) + '</strong></td></tr>';
+    if (r.revenueTarget) html += '<tr><td>Revenue Target</td><td>' + esc(String(r.revenueTarget)) + '</td></tr>';
+    if (r.cpc)           html += '<tr><td>Est. CPC</td><td>' + esc(String(r.cpc)) + '</td></tr>';
+    html += '</table></div>';
+  }
+  // Instagram Profile
+  if (d.instagramProfile) {
+    var ig = d.instagramProfile;
+    html += '<div class="section"><div class="section-title">Instagram Profile — ' + esc(ig.handle) + '</div><table>';
+    if (ig.followerCountStr)      html += '<tr><td>Followers</td><td>' + esc(ig.followerCountStr) + '</td></tr>';
+    if (ig.engagementRateStr)     html += '<tr><td>Engagement Rate</td><td>' + esc(ig.engagementRateStr) + '</td></tr>';
+    if (ig.growthTrend)           html += '<tr><td>Growth Trend</td><td>' + esc(ig.growthTrend) + '</td></tr>';
+    if (ig.recentActivitySummary) html += '<tr><td>Recent Activity</td><td>' + esc(ig.recentActivitySummary) + '</td></tr>';
+    if (ig.bestPerformingStyles)  html += '<tr><td>Best Styles</td><td>' + esc(ig.bestPerformingStyles) + '</td></tr>';
+    html += '</table></div>';
+  }
+  // Insight
+  if (d.agentInsight) html += '<div class="section"><div class="section-title">AI Agent Insight</div><div class="insight">' + esc(d.agentInsight) + '</div></div>';
 
-  html2pdf().set(opt).from(el).save().then(function() {
-    document.body.classList.remove("pdf-mode");
-    btn.disabled = false;
-    btn.textContent = "Export PDF Report";
-  }).catch(function() {
-    document.body.classList.remove("pdf-mode");
-    btn.disabled = false;
-    btn.textContent = "Export PDF Report";
-  });
+  // Open print window
+  var win = window.open("", "_blank");
+  if (!win) { alert("Please allow pop-ups to export the PDF."); return; }
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stiche Report</title>');
+  win.document.write('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">');
+  win.document.write('<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:"Inter",sans-serif;color:#1a1a2e;font-size:10.5pt;line-height:1.5;padding:20px;background:#fff;}');
+  win.document.write('.cover{text-align:center;padding:48px 0 36px;border-bottom:3px solid #6c5ce7;margin-bottom:28px;page-break-after:always;}');
+  win.document.write('.cover-logo{font-size:32pt;font-weight:900;color:#6c5ce7;letter-spacing:-1px;margin-bottom:10px;}');
+  win.document.write('.cover-title{font-size:20pt;font-weight:800;margin-bottom:4px;}.cover-sub{font-size:13pt;color:#5a5a7a;margin-bottom:12px;}');
+  win.document.write('.cover-meta{display:inline-block;padding:8px 18px;border:1px solid #e2e2ea;border-radius:8px;font-size:10.5pt;color:#9090aa;}');
+  win.document.write('.section{margin-bottom:20px;padding:16px 18px;border:1px solid #e2e2ea;border-radius:10px;page-break-inside:avoid;}');
+  win.document.write('.section-title{font-size:12.5pt;font-weight:800;color:#6c5ce7;padding-bottom:7px;border-bottom:2px solid rgba(108,92,231,0.18);margin-bottom:12px;}');
+  win.document.write('table{width:100%;border-collapse:collapse;font-size:10pt;}th{background:#f5f5ff;color:#666;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left;padding:7px 10px;border-bottom:2px solid #e2e2ea;}');
+  win.document.write('td{padding:8px 10px;border-bottom:1px solid #f0f0f6;vertical-align:top;}tr:last-child td{border-bottom:none;}');
+  win.document.write('.badge{display:inline-block;padding:2px 8px;border-radius:100px;font-size:8pt;font-weight:700;text-transform:uppercase;}');
+  win.document.write('.badge-hot{background:#fde8e8;color:#e5484d;}.badge-rising{background:#fef3e2;color:#c47f17;}.badge-steady{background:#e8f5f0;color:#1a9e6e;}');
+  win.document.write('.badge-high{background:#e8f5f0;color:#1a9e6e;}.badge-medium{background:#fef3e2;color:#c47f17;}.badge-low{background:#fde8e8;color:#e5484d;}');
+  win.document.write('.persona-block{padding:9px 0;border-bottom:1px solid #f0f0f6;}.persona-block:last-child{border-bottom:none;}');
+  win.document.write('.persona-name{font-size:11pt;font-weight:700;margin-bottom:2px;}.muted{font-weight:400;color:#9090aa;}.small{font-size:9pt;}');
+  win.document.write('.sub-text{font-size:10pt;color:#5a5a7a;line-height:1.6;margin-top:3px;}');
+  win.document.write('.caption-box{background:#f5f5ff;border-left:3px solid #6c5ce7;padding:10px 14px;border-radius:4px;white-space:pre-wrap;line-height:1.7;font-size:10pt;}');
+  win.document.write('.tag-cloud{display:flex;flex-wrap:wrap;gap:4px;padding-top:4px;}.htag{background:#f0edff;color:#6c5ce7;padding:2px 9px;border-radius:100px;font-size:9pt;font-weight:500;}');
+  win.document.write('.big-text{font-size:13pt;font-weight:800;margin-bottom:6px;}.green{color:#1a9e6e;}');
+  win.document.write('.variant{padding:9px;background:#fafafe;border:1px solid #e2e2ea;border-radius:6px;margin-bottom:7px;}');
+  win.document.write('.insight{background:#f5f5ff;border:1px solid rgba(108,92,231,0.2);border-radius:8px;padding:12px;line-height:1.7;}');
+  win.document.write('ol{padding-left:20px;}ol li{padding:5px 0;border-bottom:1px solid #f5f5f7;font-size:10.5pt;}ol li:last-child{border-bottom:none;}');
+  win.document.write('@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;}}</style>');
+  win.document.write('</head><body>' + html + '</body></html>');
+  win.document.close();
+  setTimeout(function() { win.focus(); win.print(); }, 600);
 }
+
 
 // ─── UTILITIES ──────────────────────────────────────────────────────
 function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }

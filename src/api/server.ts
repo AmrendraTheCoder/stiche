@@ -6,6 +6,7 @@ import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { runAgentPipeline } from "../agent/pipeline";
 import { runCalendarPipeline } from "../agent/calendar-pipeline";
+import { getOrdersCollection } from "../lib/db";
 
 const app = express();
 
@@ -166,12 +167,14 @@ Keep it under 4 lines. Include 1 relevant emoji. Do NOT include any subject line
 );
 
 // ── ORDERS DB ───────────────────────────────────────────────────────
-const isVercel = process.env.VERCEL === "1";
-const ORDERS_FILE = isVercel 
-  ? path.resolve("/tmp", "orders.json")
-  : path.resolve(process.cwd(), "data/orders.json");
+// Dual-mode: MongoDB when MONGODB_URI is set (production), JSON file otherwise (local dev).
+const ORDERS_FILE = path.resolve(process.cwd(), "data/orders.json");
 
-async function readOrders() {
+async function readOrders(): Promise<any[]> {
+  if (process.env.MONGODB_URI) {
+    const col = await getOrdersCollection();
+    return (await col.find({}).toArray()).map(({ _id, ...rest }) => rest);
+  }
   try {
     const data = await fs.readFile(ORDERS_FILE, "utf-8");
     return JSON.parse(data);
@@ -179,65 +182,89 @@ async function readOrders() {
     if (e.code === "ENOENT") {
       await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
       await fs.writeFile(ORDERS_FILE, "[]");
-      return [];
     }
     return [];
   }
 }
 
-async function buildBusinessContext() {
+async function writeOrders(orders: any[]): Promise<void> {
+  if (!process.env.MONGODB_URI) {
+    await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
+    await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
+  }
+}
+
+async function buildBusinessContext(): Promise<string | null> {
   const orders = await readOrders();
   if (!orders || orders.length === 0) return null;
 
-  const validOrders = orders.filter((o: any) => o.status === "Delivered" || o.status === "Shipped" || o.status === "Packed");
+  const validOrders = orders.filter((o: any) =>
+    ["Delivered", "Shipped", "Packed"].includes(o.status)
+  );
   const base = validOrders.length > 0 ? validOrders : orders;
 
   const items: Record<string, number> = {};
   let rev = 0;
   base.forEach((o: any) => {
-    if (o.item) {
-      const i = o.item.toLowerCase().trim();
-      items[i] = (items[i] || 0) + 1;
-    }
+    if (o.item) { const i = o.item.toLowerCase().trim(); items[i] = (items[i] || 0) + 1; }
     rev += (Number(o.price) || 0);
   });
 
   const top = Object.entries(items).sort((a, b) => b[1] - a[1]).slice(0, 3).map(x => x[0]);
   const avg = Math.round(rev / (base.length || 1));
-
-  return `BUSINESS PROFILE: Top selling items: ${top.join(", ")}. Average unit price: ₹${avg}.`;
-}
-
-async function writeOrders(orders: any[]) {
-  await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
-  await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
+  return `BUSINESS PROFILE: Top selling items: ${top.join(", ")}. Average unit price: \u20b9${avg}.`;
 }
 
 app.get("/api/orders", async (_req: Request, res: Response) => {
-  const orders = await readOrders();
-  res.json({ ok: true, data: orders });
+  try {
+    const orders = await readOrders();
+    res.json({ ok: true, data: orders });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 app.post("/api/orders", async (req: Request, res: Response) => {
-  const orders = await readOrders();
   const order = req.body;
   if (!order.id) { res.status(400).json({ error: "id is required" }); return; }
-  const index = orders.findIndex((o: any) => o.id === order.id);
-  if (index >= 0) {
-    orders[index] = { ...orders[index], ...order, updatedAt: new Date().toISOString() };
-  } else {
-    orders.push({ ...order, createdAt: order.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
-  }
-  await writeOrders(orders);
-  res.json({ ok: true, data: orders });
+  try {
+    if (process.env.MONGODB_URI) {
+      const col = await getOrdersCollection();
+      await col.replaceOne(
+        { id: order.id },
+        { ...order, updatedAt: new Date().toISOString() },
+        { upsert: true }
+      );
+      const orders = (await col.find({}).toArray()).map(({ _id, ...rest }) => rest);
+      res.json({ ok: true, data: orders });
+    } else {
+      const orders = await readOrders();
+      const index = orders.findIndex((o: any) => o.id === order.id);
+      if (index >= 0) {
+        orders[index] = { ...orders[index], ...order, updatedAt: new Date().toISOString() };
+      } else {
+        orders.push({ ...order, createdAt: order.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }
+      await writeOrders(orders);
+      res.json({ ok: true, data: orders });
+    }
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete("/api/orders/:id", async (req: Request, res: Response) => {
-  const orders = await readOrders();
-  const filtered = orders.filter((o: any) => o.id !== req.params.id);
-  await writeOrders(filtered);
-  res.json({ ok: true, data: filtered });
+  try {
+    if (process.env.MONGODB_URI) {
+      const col = await getOrdersCollection();
+      await col.deleteOne({ id: req.params.id });
+      const orders = (await col.find({}).toArray()).map(({ _id, ...rest }) => rest);
+      res.json({ ok: true, data: orders });
+    } else {
+      const orders = await readOrders();
+      const filtered = orders.filter((o: any) => o.id !== req.params.id);
+      await writeOrders(filtered);
+      res.json({ ok: true, data: filtered });
+    }
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
+
 
 // ── GET /api/health ─────────────────────────────────────────────────
 app.get("/api/health", (_req: Request, res: Response) => {
