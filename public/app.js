@@ -219,19 +219,36 @@ document.getElementById("agentForm").addEventListener("submit", function(e) {
   if (igHandle) formData.append("instagramHandle", igHandle);
   if (selectedFile) formData.append("image", selectedFile);
 
-  document.getElementById("loadingSub").textContent = hasImage ? "This takes 40-70 seconds (image analysis adds time)" : "This takes 30-50 seconds";
+  document.getElementById("loadingSub").textContent = hasImage ? "This takes 40-90 seconds (image analysis adds time)" : "This takes 30-60 seconds";
 
   fetch("/api/run-agent", { method: "POST", body: formData, headers: apiHeaders(), signal: abortController.signal })
-    .then(function(res) { return res.json(); })
+    .then(function(res) {
+      var status = res.status;
+      return res.text().then(function(text) {
+        // Safely attempt JSON parse — Vercel 504/502 returns HTML, not JSON
+        var json;
+        try { json = JSON.parse(text); } catch(e) {
+          // Non-JSON response = gateway error
+          if (status === 504 || status === 502 || status === 503) {
+            throw new Error("The analysis took too long and the server timed out. Try a shorter description or try again in a moment.");
+          }
+          if (status === 500) {
+            throw new Error("Server error — check that your API key is set correctly in Vercel environment variables.");
+          }
+          throw new Error("Server returned an unexpected response (status " + status + "). Please try again.");
+        }
+        if (!res.ok || json.error) throw new Error(json.error || "Pipeline failed (status " + status + ")");
+        return json;
+      });
+    })
     .then(function(json) {
-      if (json.error) throw new Error(json.error);
       resultData = json.data;
       for (var i = 1; i <= stepCount; i++) setStep(i, "done");
       setTimeout(function() { loadingBox.classList.remove("active"); renderResults(resultData); }, 300);
     })
     .catch(function(err) {
       loadingBox.classList.remove("active");
-      if (err.name !== "AbortError") { errorBox.classList.add("active"); errorMessage.textContent = err.message || "Something went wrong."; }
+      if (err.name !== "AbortError") { errorBox.classList.add("active"); errorMessage.textContent = err.message || "Something went wrong. Please try again."; }
     })
     .finally(function() {
       isRunning = false;

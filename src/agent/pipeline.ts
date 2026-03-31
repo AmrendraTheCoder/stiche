@@ -110,6 +110,13 @@ function getText(content: any[]): string {
  * CALL 2B — Ad & Reel Engine (SONNET, 4000 tokens) → ad copy, ROAS, reel script ← QUALITY
  * CALL 3  — Image+Pinterest  (SONNET + vision + 3 searches, 3000 tokens) [conditional] ← QUALITY
  *
+ * PARALLEL EXECUTION:
+ *   Phase 1: 1A runs alone (web search, needs to complete first)
+ *   Phase 2: 1B + 1C run in parallel (both use 1A's research, independent outputs)
+ *   Phase 3: 2A + 2B run in parallel (both use Phase 2 outputs, independent outputs)
+ *   Phase 4: Call 3 runs alone (image vision, conditional)
+ *
+ * Estimated time: ~55-65s vs ~120s sequential → stays under Vercel's 300s limit
  * Cost vs all-Sonnet: ~65% cheaper per run (Haiku = 3x cheaper input, 3x cheaper output)
  */
 export async function runAgentPipeline(
@@ -205,10 +212,14 @@ INSTRUCTIONS:
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // CALL 1B: Market Analytics — Focused on trends, traffic, city, personas
+  // PHASE 2: Run 1B (Market Analytics) + 1C (Financial) in parallel — both need 1A research
   // ══════════════════════════════════════════════════════════════════
-  console.log("Call 1B: Structuring market analytics (trends, traffic, personas)...");
-  try {
+  console.log("Phase 2: Running calls 1B + 1C in parallel...");
+  await Promise.all([
+    // ─── CALL 1B: Market Analytics ───────────────────────────────────────────────────
+    (async () => {
+      console.log("Call 1B: Structuring market analytics (trends, traffic, personas)...");
+      try {
     const cityBlock = city ? `
   "cityMarket": {
     "population": "<city population from research, e.g. '3.4 million'>",
@@ -352,18 +363,17 @@ Return ONLY a valid JSON object. Fill EVERY field with substantive, research-bac
     }
 
     console.log(`  ${result.trends.length} trends, ${result.traffic.length} regions, ${result.customers.length} personas, ${result.purchases.length} purchases, strategy: ${result.strategy ? "yes" : "no"}, cityMarket: ${result.cityMarket ? "yes" : "no"}, IG: ${result.instagramProfile ? "yes" : "no"}`);
-  } catch (err) {
-    // 1B is critical — rethrow so the client gets a proper error, not empty data
-    const msg = (err as Error).message || String(err);
-    console.error("Call 1B FAILED:", msg);
-    throw new Error(`Market analytics failed: ${msg}`);
-  }
+      } catch (err) {
+        const msg = (err as Error).message || String(err);
+        console.error("Call 1B FAILED:", msg);
+        throw new Error(`Market analytics failed: ${msg}`);
+      }
+    })(),
 
-  // ══════════════════════════════════════════════════════════════════
-  // CALL 1C: Financial Intelligence — Dedicated profit & pricing call
-  // ══════════════════════════════════════════════════════════════════
-  console.log("Call 1C: Financial intelligence — profit, pricing, competitors...");
-  try {
+    // ─── CALL 1C: Financial Intelligence ────────────────────────────────────────────
+    (async () => {
+      console.log("Call 1C: Financial intelligence — profit, pricing, competitors...");
+      try {
     const financialPrompt = `You are a FINANCIAL ANALYST specializing in pricing strategy for Indian handmade & artisan businesses. You help small sellers maximize profit through smart pricing, cost control, and platform selection.
 
 ═══ RESEARCH CONTEXT ═══
@@ -497,14 +507,17 @@ Return ONLY a valid JSON object:
     }
 
     console.log(`  Profit: ${result.profit ? "yes" : "no"}, Formulae: ${result.profit?.formulae?.length || 0}, Competitors: ${result.profit?.competitorPricing?.length || 0}`);
-  } catch (err) {
-    console.error("Call 1C failed:", (err as Error).message);
-  }
+      } catch (err) {
+        console.error("Call 1C failed:", (err as Error).message);
+        // 1C is soft — don't rethrow, profit section is optional
+      }
+    })(),
+  ]); // end Phase 2 Promise.all
 
   // ══════════════════════════════════════════════════════════════════
-  // CALL 2A: Content Strategy — Expert-level hooks, caption, hashtags
+  // PHASE 3: Run 2A (Content) + 2B (Ads) in parallel — both need Phase 2 results
   // ══════════════════════════════════════════════════════════════════
-  console.log("Call 2A: Content strategy — hooks, caption, hashtags...");
+  console.log("Phase 3: Running calls 2A + 2B in parallel...");
   const trendCtx = result.trends.length > 0
     ? result.trends.slice(0, 5).map(t => `${t.trend} (${t.momentum}, opportunity: ${t.opportunityScore || 'high'})`).join("; ")
     : `${topic} in ${region}`;
@@ -517,7 +530,11 @@ Return ONLY a valid JSON object:
     ? `Price range: ₹${result.profit.estimatedSellingPrice.min}-${result.profit.estimatedSellingPrice.max}. Strategy: ${result.profit.pricingStrategy || 'premium handmade positioning'}.`
     : "";
 
-  try {
+  await Promise.all([
+    // ─── CALL 2A: Content Strategy ─────────────────────────────────────────────
+    (async () => {
+      console.log("Call 2A: Content strategy — hooks, caption, hashtags...");
+      try {
     const contentPrompt = `You are a TOP-TIER Instagram content strategist who has grown 50+ Indian handmade brands from 0 to 100K+ followers. You specialize in scroll-stopping hooks and high-converting captions for the Indian market.
 
 ═══ BRAND CONTEXT ═══
@@ -587,22 +604,21 @@ Return ONLY a valid JSON object:
     }
 
     console.log(`  ${result.hooks.length} hooks, ${result.caption.length} chars caption, ${result.hashtags.length} tags`);
-  } catch (err) {
-    // 2A is critical — content is the core output, rethrow
-    const msg = (err as Error).message || String(err);
-    console.error("Call 2A FAILED:", msg);
-    throw new Error(`Content strategy failed: ${msg}`);
-  }
+      } catch (err) {
+        // 2A is critical — content is the core output, rethrow
+        const msg = (err as Error).message || String(err);
+        console.error("Call 2A FAILED:", msg);
+        throw new Error(`Content strategy failed: ${msg}`);
+      }
+    })(),
 
-  // ══════════════════════════════════════════════════════════════════
-  // CALL 2B: Ad & Reel Engine — Expert ad copy, ROAS, reel script
-  // ══════════════════════════════════════════════════════════════════
-  console.log("Call 2B: Ad copy + ROAS calculator + reel script...");
-  const priceCtx = result.profit
-    ? `Price range: ₹${result.profit.estimatedSellingPrice.min}-${result.profit.estimatedSellingPrice.max}. Profit margin: ${result.profit.profitMargin.min}-${result.profit.profitMargin.max}%.`
-    : `Product: ${topic}`;
-
-  try {
+    // ─── CALL 2B: Ad & Reel Engine ─────────────────────────────────────────────
+    (async () => {
+      console.log("Call 2B: Ad copy + ROAS calculator + reel script...");
+      const priceCtx = result.profit
+        ? `Price range: ₹${result.profit.estimatedSellingPrice.min}-${result.profit.estimatedSellingPrice.max}. Profit margin: ${result.profit.profitMargin.min}-${result.profit.profitMargin.max}%.`
+        : `Product: ${topic}`;
+      try {
     const adPrompt = `You are an expert INSTAGRAM ADVERTISING STRATEGIST and REEL DIRECTOR who has managed ₹50 lakh+ in ad spend for Indian D2C and handmade brands. You know Indian Instagram ad metrics inside-out.
 
 ═══ BRAND CONTEXT ═══
@@ -700,15 +716,17 @@ Return ONLY a valid JSON object:
     }
 
     console.log(`  Ad copy: ${result.adCopy ? "yes" : "no"}, ROAS: ${result.roas ? "yes" : "no"}, Reel: ${result.reelScript ? "yes" : "no"}`);
-  } catch (err) {
-    // 2B is critical — ad copy + reel is core output, rethrow
-    const msg = (err as Error).message || String(err);
-    console.error("Call 2B FAILED:", msg);
-    throw new Error(`Ad & reel engine failed: ${msg}`);
-  }
+      } catch (err) {
+        // 2B is critical — ad copy + reel is core output, rethrow
+        const msg = (err as Error).message || String(err);
+        console.error("Call 2B FAILED:", msg);
+        throw new Error(`Ad & reel engine failed: ${msg}`);
+      }
+    })(),
+  ]); // end Phase 3 Promise.all
 
   // ══════════════════════════════════════════════════════════════════
-  // CALL 3: Image Analysis + Pinterest (conditional)
+  // PHASE 4: Call 3 — Image Analysis + Pinterest (conditional)
   // ══════════════════════════════════════════════════════════════════
   if (imageBase64 && imageMimeType) {
     console.log("Call 3: Image analysis + Pinterest suggestions...");
