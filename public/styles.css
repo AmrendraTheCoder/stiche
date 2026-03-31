@@ -22,7 +22,7 @@ body { font-family: "Inter", -apple-system, sans-serif; background: var(--bg); c
 .logo-glow { position: absolute; top: 50%; left: 50%; width: 140%; height: 140%; transform: translate(-50%, -50%); background: radial-gradient(circle, rgba(108,92,231,0.18) 0%, transparent 70%); z-index: -1; filter: blur(15px); pointer-events: none; }
 .logo { font-size: 42px; font-weight: 900; letter-spacing: -2px; background: linear-gradient(135deg, #6c5ce7, #a29bfe, #fd79a8, #6c5ce7); background-size: 300% 300%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: gradientShine 6s ease infinite; }
 .tagline { font-size: 14px; color: var(--text-sub); margin-top: 0; line-height: 1.6; max-width: 90%; text-align: center; font-weight: 500; }
-.badges { position: relative; display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+.badges { position: relative; width: 100%; display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 16px; flex-wrap: wrap; padding: 0 44px; box-sizing: border-box; }
 .badge { font-size: 10px; font-weight: 700; padding: 5px 12px; border-radius: 100px; background: var(--bg-raised); border: 1px solid var(--border); color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.8px; box-shadow: var(--shadow-sm); }
 .glow-badge { background: rgba(108,92,231,0.08); border-color: rgba(108,92,231,0.25); color: var(--accent); }
 .tag-badge { background: transparent; border: 1px dashed var(--border); color: var(--text-muted); }
