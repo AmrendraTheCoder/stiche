@@ -470,9 +470,9 @@ body { font-family: "Inter", -apple-system, sans-serif; background: var(--bg); c
 .settings-drawer.open { display: block; }
 .settings-inner { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
 .settings-title { font-size: 14px; font-weight: 700; color: var(--text); }
-.settings-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .settings-row:last-of-type { border-bottom: none; }
-.settings-row-label { font-size: 13px; font-weight: 600; color: var(--text-sub); }
+.settings-row-label { font-size: 13px; font-weight: 600; color: var(--text-sub); min-width: 120px; flex-shrink: 0; }
 .settings-actions { display: flex; gap: 8px; }
 
 /* ─── FESTIVAL WIDGET ──────────────────────────────────────────────────── */

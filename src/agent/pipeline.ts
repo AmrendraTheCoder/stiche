@@ -32,20 +32,76 @@ const WRITE_MODEL = "claude-3-haiku-20240307";
 
 function extractJSON(raw: string): any {
   let cleaned = raw.replace(/```(?:json)?\s*/gi, "").replace(/```/g, "").trim();
+
+  // Try direct parse first (fastest, works when response is not truncated)
   try { return JSON.parse(cleaned); } catch {}
+
+  // Find the outermost { } block
   const objStart = cleaned.indexOf("{");
-  const objEnd = cleaned.lastIndexOf("}");
-  if (objStart >= 0 && objEnd > objStart) {
+  if (objStart < 0) { console.warn("No JSON object found"); return null; }
+
+  // Walk through chars counting depth — handles truncated JSON
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let objEnd = -1;
+
+  for (let i = objStart; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{' || ch === '[') depth++;
+    if (ch === '}' || ch === ']') { depth--; if (depth === 0) { objEnd = i; break; } }
+  }
+
+  if (objEnd > objStart) {
     try { return JSON.parse(cleaned.slice(objStart, objEnd + 1)); } catch {}
   }
-  const arrStart = cleaned.indexOf("[");
-  const arrEnd = cleaned.lastIndexOf("]");
-  if (arrStart >= 0 && arrEnd > arrStart) {
-    try { return JSON.parse(cleaned.slice(arrStart, arrEnd + 1)); } catch {}
+
+  // JSON was truncated — repair by closing all open brackets
+  const fragment = cleaned.slice(objStart);
+  const repaired = repairTruncatedJSON(fragment);
+  if (repaired) {
+    try { return JSON.parse(repaired); } catch {}
   }
+
   console.warn("JSON extraction failed from:", raw.slice(0, 300));
   return null;
 }
+
+function repairTruncatedJSON(fragment: string): string | null {
+  // Walk through and track open brackets/braces to close them
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  let lastValidPos = 0;
+
+  for (let i = 0; i < fragment.length; i++) {
+    const ch = fragment[i];
+    if (escape) { escape = false; lastValidPos = i; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; if (!inString) lastValidPos = i; continue; }
+    if (inString) continue;
+    if (ch === '{') { stack.push('}'); lastValidPos = i; }
+    else if (ch === '[') { stack.push(']'); lastValidPos = i; }
+    else if (ch === '}' || ch === ']') {
+      if (stack.length > 0 && stack[stack.length - 1] === ch) { stack.pop(); lastValidPos = i; }
+    } else if (ch !== ' ' && ch !== '\n' && ch !== '\r' && ch !== '\t') {
+      lastValidPos = i;
+    }
+  }
+
+  if (stack.length === 0) return fragment; // Already balanced
+
+  // Truncate to last valid position and close all open brackets
+  let tail = fragment.slice(0, lastValidPos + 1).trimEnd();
+  // Remove trailing comma before adding closers
+  if (tail.endsWith(',')) tail = tail.slice(0, -1);
+  return tail + stack.reverse().join('');
+}
+
 
 function getText(content: any[]): string {
   return content
@@ -255,7 +311,7 @@ CRITICAL RULES:
 
     const response = await getAnthropic().messages.create({
       model: SEARCH_MODEL,
-      max_tokens: 4000,
+      max_tokens: 6000, // Increased: full schema (customers+profit+formulae) needs ~5k tokens
       messages: [{ role: "user", content: structurePrompt }],
     });
 
