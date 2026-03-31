@@ -1,6 +1,6 @@
 // ─── ORDER TRACKER ──────────────────────────────────────────────────
-function getSiteKey() { return localStorage.getItem("stiche_site_key") || ""; }
-function apiHeaders(extra) { return Object.assign({ "x-site-key": getSiteKey() }, extra || {}); }
+// Note: getSiteKey/apiHeaders/submitSiteKey are defined in app.js (loaded first)
+// which also handles the auth modal on page load.
 
 var orders = [];
 var currentFilter = "all";

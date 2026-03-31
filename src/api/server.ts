@@ -280,7 +280,10 @@ Keep it under 4 lines. Include 1 relevant emoji. Do NOT include any subject line
 
 // ── ORDERS DB ───────────────────────────────────────────────────────
 // Dual-mode: MongoDB when MONGODB_URI is set (production), JSON file otherwise (local dev).
-const ORDERS_FILE = path.resolve(process.cwd(), "data/orders.json");
+// On Vercel, /tmp is the only writable directory — data/ would cause EPERM.
+const ORDERS_FILE = process.env.VERCEL
+  ? "/tmp/stiche-orders.json"
+  : path.resolve(process.cwd(), "data/orders.json");
 
 async function readOrders(): Promise<any[]> {
   if (process.env.MONGODB_URI) {
@@ -292,8 +295,10 @@ async function readOrders(): Promise<any[]> {
     return JSON.parse(data);
   } catch (e: any) {
     if (e.code === "ENOENT") {
-      await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
-      await fs.writeFile(ORDERS_FILE, "[]");
+      try {
+        await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
+        await fs.writeFile(ORDERS_FILE, "[]");
+      } catch (_) { /* /tmp may already exist, ignore */ }
     }
     return [];
   }
@@ -301,8 +306,10 @@ async function readOrders(): Promise<any[]> {
 
 async function writeOrders(orders: any[]): Promise<void> {
   if (!process.env.MONGODB_URI) {
-    await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
-    await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
+    try {
+      await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
+      await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
+    } catch (_) { /* ignore write errors on read-only fs */ }
   }
 }
 

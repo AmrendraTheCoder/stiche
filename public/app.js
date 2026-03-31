@@ -1,18 +1,64 @@
 // ─── AUTH HELPER ────────────────────────────────────────────────────
-// The SITE_KEY is set once by you in Vercel env vars.
-// In the browser it's stored in localStorage after first prompt.
-// This prevents random people from using your API endpoints.
+// Reads site key from localStorage. Uses a proper HTML modal instead of
+// browser prompt() which is blocked on iOS Safari and some Android browsers.
 function getSiteKey() {
-  var k = localStorage.getItem("stiche_site_key");
-  if (!k) {
-    k = prompt("Enter site access key:") || "";
-    if (k) localStorage.setItem("stiche_site_key", k);
-  }
-  return k || "";
+  return localStorage.getItem('stiche_site_key') || '';
 }
 function apiHeaders(extra) {
-  var h = { "x-site-key": getSiteKey() };
+  var h = { 'x-site-key': getSiteKey() };
   return Object.assign(h, extra || {});
+}
+
+// Called on page load — probes the API to see if auth is required.
+// If server returns 401, shows the unlock modal. If 200/other, proceeds normally.
+(function checkAuth() {
+  fetch('/api/health')
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      // Health is public, now probe the orders endpoint which requires auth
+      return fetch('/api/orders', { headers: apiHeaders() });
+    })
+    .then(function(r) {
+      if (r.status === 401) {
+        showSiteKeyModal();
+      }
+    })
+    .catch(function() { /* network error, proceed */ });
+})();
+
+function showSiteKeyModal() {
+  var modal = document.getElementById('siteKeyModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function submitSiteKey() {
+  var input = document.getElementById('siteKeyInput');
+  var key = (input ? input.value : '').trim();
+  if (!key) return;
+  var btn = document.getElementById('siteKeySubmit');
+  btn.disabled = true; btn.textContent = 'Checking...';
+
+  // Test the key against a protected endpoint
+  fetch('/api/orders', { headers: { 'x-site-key': key } })
+    .then(function(r) {
+      if (r.status === 401) {
+        btn.disabled = false; btn.textContent = 'Unlock Dashboard';
+        var err = document.getElementById('siteKeyError');
+        if (err) err.style.display = 'block';
+      } else {
+        localStorage.setItem('stiche_site_key', key);
+        var modal = document.getElementById('siteKeyModal');
+        if (modal) modal.style.display = 'none';
+        // Reload orders after auth
+        if (typeof loadOrders === 'function') loadOrders();
+      }
+    })
+    .catch(function() {
+      // On network error, save the key anyway and try
+      localStorage.setItem('stiche_site_key', key);
+      var modal = document.getElementById('siteKeyModal');
+      if (modal) modal.style.display = 'none';
+    });
 }
 
 // ─── TAB SWITCHING ──────────────────────────────────────────────────

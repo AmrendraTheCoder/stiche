@@ -55,11 +55,10 @@ function saveSettings() {
 // ── Reset site key ────────────────────────────────────────────────────────
 function resetSiteKey() {
   localStorage.removeItem('stiche_site_key');
-  var newKey = prompt('Enter new site access key:') || '';
-  if (newKey) {
-    localStorage.setItem('stiche_site_key', newKey);
-    alert('Site key updated. The page will reload.');
-    window.location.reload();
+  toggleSettings();
+  // Show the unlock modal so user can enter new key properly
+  if (typeof showSiteKeyModal === 'function') {
+    showSiteKeyModal();
   }
 }
 
