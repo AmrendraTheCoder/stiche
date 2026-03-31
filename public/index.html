@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="landing.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon.svg" />
 </head>
 <body>
 
@@ -217,6 +219,13 @@
     window.addEventListener('scroll', function() {
       nav.classList.toggle('scrolled', window.scrollY > 20);
     });
+
+    // Clean up stale service workers from previous projects
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        registrations.forEach(function(r) { r.unregister(); });
+      });
+    }
   </script>
 </body>
 </html>

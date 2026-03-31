@@ -1,12 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
 import {
   AgentInput,
   AgentOutput,
 } from "./types";
 
 let _anthropic: Anthropic | null = null;
-let _openrouter: OpenAI | null = null;
 
 function getAnthropic(): Anthropic {
   if (!_anthropic) {
@@ -15,18 +13,12 @@ function getAnthropic(): Anthropic {
   return _anthropic;
 }
 
-function getOpenRouter(): OpenAI {
-  if (!_openrouter) {
-    _openrouter = new OpenAI({
-      baseURL: "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY || "sk-placeholder",
-    });
-  }
-  return _openrouter;
-}
-
-const SEARCH_MODEL = "claude-3-7-sonnet-20250219";
-const WRITE_MODEL = "claude-3-haiku-20240307";
+// ─── MODEL ROUTING STRATEGY (cost-optimized) ────────────────────────
+// Haiku 4.5: $1/$5 per MTok  — research, analytics, structured JSON
+// Sonnet 4.6: $3/$15 per MTok — creative content (hooks, captions, ads, reels)
+// Result: ~65% cost reduction per run vs all-Sonnet
+const HAIKU  = "claude-haiku-4-5-20251001";   // Data gathering, structured JSON
+const SONNET = "claude-sonnet-4-6";            // Creative: hooks, captions, ad copy, reels
 
 // ─── UTILITY ────────────────────────────────────────────────────────
 
@@ -72,7 +64,6 @@ function extractJSON(raw: string): any {
 }
 
 function repairTruncatedJSON(fragment: string): string | null {
-  // Walk through and track open brackets/braces to close them
   const stack: string[] = [];
   let inString = false;
   let escape = false;
@@ -93,11 +84,9 @@ function repairTruncatedJSON(fragment: string): string | null {
     }
   }
 
-  if (stack.length === 0) return fragment; // Already balanced
+  if (stack.length === 0) return fragment;
 
-  // Truncate to last valid position and close all open brackets
   let tail = fragment.slice(0, lastValidPos + 1).trimEnd();
-  // Remove trailing comma before adding closers
   if (tail.endsWith(',')) tail = tail.slice(0, -1);
   return tail + stack.reverse().join('');
 }
@@ -110,46 +99,29 @@ function getText(content: any[]): string {
     .join("\n");
 }
 
-async function cheapWrite(prompt: string, maxTokens: number = 1500): Promise<string> {
-  if (process.env.USE_OPENROUTER === "true" && process.env.OPENROUTER_API_KEY) {
-    try {
-      const res = await getOpenRouter().chat.completions.create({
-        model: process.env.OPENROUTER_FREE_MODEL || "meta-llama/llama-3.3-70b-instruct:free",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: maxTokens,
-      });
-      const content = res.choices[0]?.message?.content;
-      if (content) return content;
-    } catch (err) {
-      console.warn("OpenRouter failed:", (err as Error).message);
-    }
-  }
-  const res = await getAnthropic().messages.create({
-    model: WRITE_MODEL,
-    max_tokens: maxTokens,
-    messages: [{ role: "user", content: prompt }],
-  });
-  return getText(res.content);
-}
-
-// ─── PIPELINE v2 ────────────────────────────────────────────────────
+// ─── PIPELINE v4 — SMART COST-OPTIMIZED ARCHITECTURE ────────────────
 /**
- * CALL 1A — Web Search (Haiku 4.5 + web search) — gather raw intel
- * CALL 1B — Analysis (Haiku 4.5) — structure the research into JSON
- * CALL 2  — Creative (Haiku 3 / free) — hooks, caption, hashtags
- * CALL 3  — Vision (Haiku 4.5 + vision + web) — image analysis [conditional]
+ * 6-CALL ARCHITECTURE (smart model routing for max quality/$ ratio):
+ *
+ * CALL 1A — Deep Web Search  (HAIKU  + 10 web searches, 6000 tokens) → raw market intel
+ * CALL 1B — Market Analytics (HAIKU, 6000 tokens) → trends, traffic, city, personas
+ * CALL 1C — Financial Intel  (HAIKU, 3000 tokens) → profit, pricing, competitor analysis
+ * CALL 2A — Content Strategy (SONNET, 4000 tokens) → hooks, caption, hashtags, insight ← QUALITY
+ * CALL 2B — Ad & Reel Engine (SONNET, 4000 tokens) → ad copy, ROAS, reel script ← QUALITY
+ * CALL 3  — Image+Pinterest  (SONNET + vision + 3 searches, 3000 tokens) [conditional] ← QUALITY
+ *
+ * Cost vs all-Sonnet: ~65% cheaper per run (Haiku = 3x cheaper input, 3x cheaper output)
  */
 export async function runAgentPipeline(
   input: AgentInput,
 ): Promise<AgentOutput> {
-  // Pre-flight: verify API key exists before doing anything
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY is not set. Add it in Vercel Dashboard > Settings > Environment Variables, then redeploy.");
   }
 
   const { topic, niche, region, city, hookStyle, goal, imageBase64, imageMimeType, instagramHandle } = input;
   const locationStr = city ? `${city}, ${region}` : region;
-  console.log(`\nPipeline v2: "${topic}" / "${niche}" / ${locationStr}` + (instagramHandle ? ` / IG: @${instagramHandle}` : ""));
+  console.log(`\nPipeline v3: "${topic}" / "${niche}" / ${locationStr}` + (instagramHandle ? ` / IG: @${instagramHandle}` : ""));
 
   const result: AgentOutput = {
     trends: [],
@@ -171,30 +143,56 @@ export async function runAgentPipeline(
     instagramProfile: null,
   };
 
-  // ── CALL 1A: Web Search — gather raw market intel ─────────────────
-  console.log("Call 1A: Web search for raw market intel...");
+  // ══════════════════════════════════════════════════════════════════
+  // CALL 1A: Deep Web Search — 10 searches, comprehensive research
+  // ══════════════════════════════════════════════════════════════════
+  console.log("Call 1A: Deep web search for comprehensive market intel...");
   let rawResearch = "";
   try {
-    const searchPrompt = `Search the web thoroughly for the following information about "${topic}" in the "${niche}" market in ${locationStr}, India:
+    const searchPrompt = `You are a senior market research analyst specializing in the Indian handmade & artisan economy. Conduct THOROUGH web research on the following — use ALL available search queries to gather the deepest possible intelligence.
 
-1. Current trending crochet/handmade products on Instagram India right now  
-2. Pricing of "${topic}" on Etsy India, Amazon Handmade, Instagram shops, Meesho
-3. Which Indian states/cities have the highest demand for handmade crochet products
-4. Demographics of crochet buyers in India — age, gender, income level
-5. Best-selling crochet product categories in India right now
-6. Instagram posting best practices for Indian handmade sellers — best times, formats
-${city ? `7. Market data specific to ${city} — population, festivals, craft market, shopping habits` : ""}
-${instagramHandle ? `8. Public analytics for Instagram account @${instagramHandle} (follower count, engagement rate, average likes, recent activity, content style).` : ""}
+RESEARCH TARGET: "${topic}" in the "${niche}" market in ${locationStr}, India.
 
-Search multiple sources and provide a comprehensive research report. Include actual prices in INR when found.`;
+Search for ALL of the following (use multiple searches, do NOT skip any):
+
+1. TRENDING PRODUCTS: What specific ${niche} products are trending on Instagram India RIGHT NOW? Search for "trending crochet products India 2025", "handmade trending India Instagram". Look for real product names, styles, colors trending this season.
+
+2. PRICING INTELLIGENCE: Search Etsy India, Amazon Handmade, Meesho, and Instagram shops for "${topic}" pricing. Get ACTUAL price ranges in INR. Search for "${topic} price India", "${topic} Etsy India", "${topic} handmade price".
+
+3. REGIONAL DEMAND: Which Indian states/cities have highest demand for handmade ${niche} products? Search for "handmade crochet demand India cities", "craft market India statistics".
+
+4. BUYER DEMOGRAPHICS: Who buys handmade ${niche} in India? Age, gender, income, motivations. Search for "handmade buyer demographics India", "who buys crochet products India".
+
+5. COMPETITOR ANALYSIS: Top Instagram sellers in this niche in India. Search for "top crochet sellers Instagram India", "best handmade shops India Instagram". Note their follower counts, pricing, style.
+
+6. PLATFORM BESTSELLERS: What's selling best on each platform right now? Search for "bestselling handmade Meesho", "trending Etsy India handmade".
+
+7. SEASONAL TRENDS: Upcoming festivals, seasons, events that create demand. Search for "festival gifting handmade India calendar", "seasonal craft demand India".
+
+8. MATERIAL COSTS: Current prices of yarn, thread, supplies in India. Search for "${niche} material cost India", "yarn price India wholesale 2025".
+
+9. INSTAGRAM BEST PRACTICES FOR INDIAN SELLERS: Best posting times IST, formats, engagement tactics. Search for "Instagram best time post India 2025", "Instagram reels strategy handmade sellers".
+
+${city ? `10. LOCAL MARKET DATA: Population, income, local craft scene, shopping habits specific to ${city}. Search for "${city} craft market", "${city} population income statistics", "${city} festivals calendar".` : ""}
+
+${instagramHandle ? `11. INSTAGRAM PROFILE: Search for "@${instagramHandle}" on Instagram — follower count, engagement patterns, content style, posting frequency, growth trajectory. Search for "${instagramHandle} Instagram analytics", "@${instagramHandle} followers".` : ""}
+
+12. WHOLESALE VS RETAIL: Price differences, bulk order trends, B2B opportunities for ${niche} products. Search for "handmade wholesale India", "bulk crochet orders India".
+
+INSTRUCTIONS:
+- Search AGGRESSIVELY — use all 10 search queries
+- Include ACTUAL NUMBERS from search results (prices in ₹, follower counts, percentages)
+- Note the SOURCE of each data point
+- Provide a comprehensive research report covering all 12 areas above
+- Do NOT make up data — report what you actually find, note gaps`;
 
     const response = await getAnthropic().messages.create({
-      model: SEARCH_MODEL,
-      max_tokens: 4000,
+      model: HAIKU, // Research: Haiku does web search just as well at 3x lower cost
+      max_tokens: 6000,
       tools: [{
         type: "web_search_20250305" as any,
         name: "web_search",
-        max_uses: 5,
+        max_uses: 10,
       } as any],
       messages: [{ role: "user", content: searchPrompt }],
     });
@@ -203,120 +201,144 @@ Search multiple sources and provide a comprehensive research report. Include act
     console.log("  Research gathered:", rawResearch.length, "chars");
   } catch (err) {
     console.error("Call 1A failed:", (err as Error).message);
-    rawResearch = `Topic: ${topic}, Niche: ${niche}, Region: ${locationStr}. No web search data available.`;
+    rawResearch = `Topic: ${topic}, Niche: ${niche}, Region: ${locationStr}. No web search data available — generate from domain knowledge.`;
   }
 
-  // ── CALL 1B: Structure research into comprehensive JSON ───────────
-  console.log("Call 1B: Structuring research into analytics...");
+  // ══════════════════════════════════════════════════════════════════
+  // CALL 1B: Market Analytics — Focused on trends, traffic, city, personas
+  // ══════════════════════════════════════════════════════════════════
+  console.log("Call 1B: Structuring market analytics (trends, traffic, personas)...");
   try {
     const cityBlock = city ? `
   "cityMarket": {
-    "population": "<city population>",
-    "avgIncome": "<average household income in INR>",
-    "craftMarketSize": "<estimated craft market size or description>",
-    "onlinePenetration": "<% shopping online>",
-    "topPlatforms": ["platform1", "platform2", "platform3"],
-    "festivalCalendar": ["Festival1 (Month)", "Festival2 (Month)", "Festival3 (Month)"],
-    "competitorDensity": "low|medium|high"
+    "population": "<city population from research, e.g. '3.4 million'>",
+    "avgIncome": "<average household income in INR from research, e.g. '₹45,000/month'>",
+    "craftMarketSize": "<estimated craft/handmade market value or description, e.g. '₹120 crore annual handmade market'>",
+    "onlinePenetration": "<% shopping online, e.g. '62% of 18-35 age group'>",
+    "topPlatforms": ["platform1", "platform2", "platform3", "platform4"],
+    "festivalCalendar": ["Festival1 (Month)", "Festival2 (Month)", "Festival3 (Month)", "Festival4 (Month)", "Festival5 (Month)"],
+    "competitorDensity": "low|medium|high — with explanation"
   },` : `"cityMarket": null,`;
 
     const igBlock = instagramHandle ? `
   "instagramProfile": {
     "handle": "@${instagramHandle}",
-    "followerCountStr": "<estimated or known follower count>",
-    "engagementRateStr": "<estimated engagement rate e.g. 2.5%>",
-    "recentActivitySummary": "<summary of posting frequency and recent activity>",
-    "bestPerformingStyles": "<what they do best>",
-    "growthTrend": "<up/stable/down>"
+    "followerCountStr": "<estimated or found follower count>",
+    "engagementRateStr": "<estimated engagement rate, e.g. '2-4%'>",
+    "recentActivitySummary": "<detailed summary of posting frequency, last active, content types posted>",
+    "bestPerformingStyles": "<what content types work best for them — reels, carousels, flat-lays, etc.>",
+    "growthTrend": "<up/stable/down with context>"
   },` : `"instagramProfile": null,`;
 
-    const structurePrompt = `You are a business intelligence analyst. Based on the research data below, create a comprehensive JSON analytics report.
+    const structurePrompt = `You are a SENIOR MARKET RESEARCH ANALYST at a top Indian e-commerce consultancy specializing in handmade & artisan products. You have 15 years of experience analyzing the Indian craft market.
 
-RESEARCH DATA:
-${rawResearch.slice(0, 6000)}
+Your task: Transform raw research data into a precisely structured analytics report. Every field must contain REAL, SPECIFIC, ACTIONABLE data — generic filler is unacceptable.
 
+═══ RAW RESEARCH DATA ═══
+${rawResearch.slice(0, 10000)}
+
+═══ ANALYSIS PARAMETERS ═══
 PRODUCT: "${topic}" | NICHE: "${niche}" | LOCATION: ${locationStr}, India | GOAL: ${goal}
 
-Return ONLY a valid JSON object with these sections filled in completely. Use realistic Indian market data. Fill in ALL fields — leave nothing empty.
+═══ OUTPUT FORMAT ═══
+Return ONLY a valid JSON object. Fill EVERY field with substantive, research-backed data.
 
 {
   "trends": [
-    {"trend": "trend name", "momentum": "hot", "region": "Indian state/city", "why": "1-line reason"},
-    {"trend": "trend name", "momentum": "rising", "region": "Indian state/city", "why": "1-line reason"},
-    {"trend": "trend name", "momentum": "hot", "region": "Indian state/city", "why": "1-line reason"},
-    {"trend": "trend name", "momentum": "steady", "region": "Indian state/city", "why": "1-line reason"},
-    {"trend": "trend name", "momentum": "rising", "region": "Indian state/city", "why": "1-line reason"}
+    {
+      "trend": "<specific product/style trend name — NOT generic>",
+      "momentum": "hot",
+      "region": "<specific Indian state or city where this is trending>",
+      "why": "<2-sentence explanation citing the market driver behind this trend>",
+      "searchVolume": "<estimated monthly searches, e.g. '15,000+ monthly' or 'High — growing 40% MoM'>",
+      "competitorCount": "<how crowded this trend is, e.g. 'Low — fewer than 30 active sellers on Instagram'>",
+      "opportunityScore": 85,
+      "actionTip": "<one precise action the seller should take, e.g. 'List this product at ₹599 on Instagram with carousel showing process'>"
+    },
+    <provide exactly 7 trends — mix of hot, rising, and steady>
   ],
   "traffic": [
-    {"region": "Indian state", "score": 85, "trend": "up", "insight": "why important"},
-    {"region": "Indian state", "score": 72, "trend": "up", "insight": "why important"},
-    {"region": "Indian state", "score": 65, "trend": "stable", "insight": "why important"},
-    {"region": "Indian state", "score": 58, "trend": "up", "insight": "why important"}
+    {
+      "region": "<specific Indian state>",
+      "score": 88,
+      "trend": "up",
+      "insight": "<why this region matters for this product — cite specific market data>",
+      "demographicBreakdown": "<who's buying in this region, e.g. '70% women 22-34, primarily IT professionals and college students'>",
+      "conversionPotential": "<how likely traffic converts, e.g. 'High — 6-9% conversion rate for handmade on Instagram'>",
+      "seasonalNote": "<when this region peaks, e.g. 'Strongest Oct-Dec (Diwali, Christmas) and Feb (Valentine gifting)'>"
+    },
+    <provide exactly 6 regions>
   ],
   ${cityBlock}
   ${igBlock}
   "customers": [
-    {"name": "persona name", "age": "25-34", "location": "${city || 'Mumbai'}", "behavior": "detailed buying behavior specific to ${locationStr}", "buyingIntent": "high"},
-    {"name": "persona name", "age": "18-24", "location": "${city || 'Bangalore'}", "behavior": "detailed behavior", "buyingIntent": "medium"},
-    {"name": "persona name", "age": "30-45", "location": "${city || 'Delhi'}", "behavior": "detailed behavior", "buyingIntent": "high"},
-    {"name": "persona name", "age": "22-35", "location": "${city || 'Pune'}", "behavior": "detailed behavior", "buyingIntent": "medium"}
+    {
+      "name": "<realistic Indian persona name, e.g. 'Priya Sharma'>",
+      "age": "24-32",
+      "location": "${city || 'Mumbai'}",
+      "behavior": "<DETAILED buying behavior — 4-5 sentences minimum. Include: how they discover products, what makes them buy, their budget cycle, gifting patterns, brand loyalty traits>",
+      "buyingIntent": "high",
+      "socialMediaBehavior": "<how they use Instagram: browsing reels during lunch break, saving posts for later, DMing sellers for custom orders, checking stories for new drops>",
+      "priceRange": "₹400–₹1200 per purchase",
+      "purchaseTriggers": ["trigger1", "trigger2", "trigger3", "trigger4"],
+      "preferredPlatforms": ["Instagram", "WhatsApp", "Meesho"]
+    },
+    <provide exactly 5 distinct personas across different demographics and locations>
   ],
   "purchases": [
-    {"category": "product category 1", "score": 88, "trend": "up", "insight": "demand driver"},
-    {"category": "product category 2", "score": 75, "trend": "up", "insight": "demand driver"},
-    {"category": "product category 3", "score": 68, "trend": "stable", "insight": "demand driver"},
-    {"category": "product category 4", "score": 55, "trend": "up", "insight": "demand driver"},
-    {"category": "product category 5", "score": 42, "trend": "down", "insight": "demand driver"}
+    {
+      "category": "<specific product category, e.g. 'Crochet Tote Bags' NOT just 'bags'>",
+      "score": 92,
+      "trend": "up",
+      "insight": "<why this category is performing this way — cite demand drivers>",
+      "avgPriceRange": "₹350–₹800",
+      "seasonalPeak": "Oct-Dec (festive season gifting)",
+      "competitionLevel": "Medium — ~100 active sellers on Instagram India"
+    },
+    <provide exactly 6 product categories with realistic demand scores>
   ],
   "strategy": {
-    "bestTime": "specific time range IST",
-    "bestDay": "specific day",
-    "format": "Reel/Carousel/Post",
-    "contentAngle": "specific angle",
-    "ctaSuggestion": "specific CTA text",
-    "competitorGap": "what competitors miss"
-  },
-  "profit": {
-    "estimatedSellingPrice": {"min": 0, "max": 0, "currency": "INR"},
-    "materialCost": {"min": 0, "max": 0},
-    "laborHours": {"min": 0, "max": 0},
-    "laborCostPerHour": 150,
-    "platformFees": [
-      {"platform": "Instagram Direct", "percentage": 0},
-      {"platform": "Etsy India", "percentage": 6.5},
-      {"platform": "Amazon Handmade", "percentage": 15},
-      {"platform": "Meesho", "percentage": 0}
+    "bestTime": "<specific time ranges in IST with reasoning, e.g. '12:00-1:30 PM IST (lunch break scrolling) and 8:30-10:00 PM IST (evening relaxation)'>",
+    "bestDay": "<specific days with reasoning, e.g. 'Wednesday and Sunday — highest engagement for lifestyle/handmade content'>",
+    "format": "<specific format with explanation, e.g. 'Reel (15-30s process videos) for reach; Carousel (5-7 slides) for saves'>",
+    "contentAngle": "<specific angle tailored to this product and audience>",
+    "ctaSuggestion": "<exact CTA text to use, e.g. 'DM us \"WANT\" to order 💌 — limited pieces handmade just for you'>",
+    "competitorGap": "<specific gap found in competitor analysis — what they're NOT doing that this seller should do>",
+    "contentPillars": ["pillar1 — brief description", "pillar2 — brief description", "pillar3 — brief description", "pillar4 — brief description", "pillar5 — brief description"],
+    "postingFrequency": "<specific schedule, e.g. '5 posts/week: 2 Reels, 2 Carousels, 1 Single. Stories: 5-7 daily. Lives: 1 per week on Sunday'>",
+    "audienceGrowthTips": [
+      "<tip 1 — specific, actionable, not generic>",
+      "<tip 2>",
+      "<tip 3>",
+      "<tip 4>",
+      "<tip 5>"
     ],
-    "shippingEstimate": 80,
-    "profitMargin": {"min": 0, "max": 0},
-    "monthlyPotential": {"units": 0, "revenue": 0, "profit": 0},
-    "breakEvenUnits": 0,
-    "formulae": [
-      {"name": "Gross Profit", "formula": "Selling Price - Material Cost - Shipping", "explanation": "Revenue minus direct costs of goods and delivery", "example": "fill with real numbers from your analysis"},
-      {"name": "Net Profit", "formula": "Gross Profit - (Price × Platform Fee%) - (Hours × ₹150/hr)", "explanation": "Take-home after platform fees and labor cost", "example": "fill with real numbers"},
-      {"name": "Profit Margin %", "formula": "(Net Profit ÷ Selling Price) × 100", "explanation": "What percentage of each sale is pure profit", "example": "fill with real numbers"},
-      {"name": "Monthly Revenue", "formula": "Average Selling Price × Units Sold per Month", "explanation": "Total monthly income before costs", "example": "fill with real numbers"},
-      {"name": "Break-Even Units", "formula": "Monthly Fixed Costs ÷ (Selling Price - Variable Cost per Unit)", "explanation": "Minimum units to sell before making profit", "example": "fill with real numbers"},
-      {"name": "ROI %", "formula": "(Total Profit ÷ Total Investment) × 100", "explanation": "Return on your material and time investment", "example": "fill with real numbers"}
+    "engagementTactics": [
+      "<tactic 1 — e.g. 'Use Instagram Polls in stories asking followers to pick between 2 color options'>",
+      "<tactic 2>",
+      "<tactic 3>",
+      "<tactic 4>"
     ]
   }
 }
 
-CRITICAL RULES:
-- Fill ALL number fields with REALISTIC values based on the research
-- Profit formulae examples MUST have actual calculated numbers, not placeholders
-- Customer personas must be specific to ${locationStr} with detailed behaviors
-- Use REAL prices from the research data in INR
-- Return ONLY valid JSON, no other text`;
+═══ QUALITY RULES ═══
+1. EVERY trend must have a unique, specific name — NOT "Crochet Trend 1"
+2. Customer persona behaviors must be 4-5 sentences MINIMUM with Indian cultural context
+3. Purchase triggers should reflect Indian buying psychology (gifting culture, festivals, Instagram influence)
+4. ALL scores must be realistic and differentiated (not all 80-90)
+5. Action tips must be specific enough to implement TODAY
+6. Use ACTUAL data from research — prices in ₹, real platform names, real Indian cities
+7. Return ONLY valid JSON — no markdown, no commentary`;
 
     const response = await getAnthropic().messages.create({
-      model: SEARCH_MODEL,
-      max_tokens: 6000, // Increased: full schema (customers+profit+formulae) needs ~5k tokens
+      model: HAIKU, // Analytics: structured JSON output — Haiku excels at this
+      max_tokens: 6000,
       messages: [{ role: "user", content: structurePrompt }],
     });
 
     const raw = getText(response.content);
-    console.log("  Structured response:", raw.length, "chars");
+    console.log("  Market analytics response:", raw.length, "chars");
 
     const parsed = extractJSON(raw);
     if (parsed) {
@@ -326,145 +348,349 @@ CRITICAL RULES:
       result.purchases = Array.isArray(parsed.purchases) ? parsed.purchases : [];
       result.strategy = parsed.strategy || null;
       result.cityMarket = parsed.cityMarket || null;
-      result.profit = parsed.profit || null;
       result.instagramProfile = parsed.instagramProfile || null;
     }
 
-    console.log(`  ${result.trends.length} trends, ${result.traffic.length} regions, ${result.customers.length} personas, ${result.purchases.length} purchases, strategy: ${result.strategy ? "yes" : "no"}, profit: ${result.profit ? "yes" : "no"}, cityMarket: ${result.cityMarket ? "yes" : "no"}, IG: ${result.instagramProfile ? "yes" : "no"}`);
+    console.log(`  ${result.trends.length} trends, ${result.traffic.length} regions, ${result.customers.length} personas, ${result.purchases.length} purchases, strategy: ${result.strategy ? "yes" : "no"}, cityMarket: ${result.cityMarket ? "yes" : "no"}, IG: ${result.instagramProfile ? "yes" : "no"}`);
   } catch (err) {
-    console.error("Call 1B failed:", (err as Error).message);
+    // 1B is critical — rethrow so the client gets a proper error, not empty data
+    const msg = (err as Error).message || String(err);
+    console.error("Call 1B FAILED:", msg);
+    throw new Error(`Market analytics failed: ${msg}`);
   }
 
-  // ── CALL 2: Creative writing ──────────────────────────────────────
-  console.log("Call 2: Hooks + caption...");
+  // ══════════════════════════════════════════════════════════════════
+  // CALL 1C: Financial Intelligence — Dedicated profit & pricing call
+  // ══════════════════════════════════════════════════════════════════
+  console.log("Call 1C: Financial intelligence — profit, pricing, competitors...");
+  try {
+    const financialPrompt = `You are a FINANCIAL ANALYST specializing in pricing strategy for Indian handmade & artisan businesses. You help small sellers maximize profit through smart pricing, cost control, and platform selection.
+
+═══ RESEARCH CONTEXT ═══
+Product: "${topic}" | Niche: "${niche}" | Location: ${locationStr}, India
+Goal: ${goal}
+
+Market research data (extract relevant pricing/cost info):
+${rawResearch.slice(0, 5000)}
+
+═══ YOUR TASK ═══
+Create a comprehensive financial analysis. Every number must be REALISTIC for the Indian handmade market. Show your work in the formulae examples.
+
+Return ONLY a valid JSON object:
+
+{
+  "profit": {
+    "estimatedSellingPrice": {"min": <realistic low price in INR>, "max": <realistic high price in INR>, "currency": "INR"},
+    "materialCost": {"min": <actual minimum material cost in INR>, "max": <actual maximum material cost>},
+    "laborHours": {"min": <minimum hours to make>, "max": <maximum hours>},
+    "laborCostPerHour": <realistic hourly rate for Indian artisan, typically ₹100-250>,
+    "platformFees": [
+      {"platform": "Instagram Direct (DM orders)", "percentage": 0},
+      {"platform": "WhatsApp Business", "percentage": 0},
+      {"platform": "Etsy India", "percentage": 6.5},
+      {"platform": "Amazon Handmade India", "percentage": 15},
+      {"platform": "Meesho", "percentage": 0},
+      {"platform": "InstaMojo", "percentage": 2}
+    ],
+    "shippingEstimate": <average shipping cost in INR for India>,
+    "packagingCost": <cost of premium packaging — box, tissue paper, thank-you card>,
+    "photographyCost": <per-product photography cost, or 0 if DIY>,
+    "profitMargin": {"min": <minimum profit margin %>, "max": <maximum profit margin %>},
+    "monthlyPotential": {
+      "units": <realistic monthly units for a small Instagram seller>,
+      "revenue": <monthly revenue in INR>,
+      "profit": <monthly NET profit in INR>
+    },
+    "breakEvenUnits": <units needed to cover monthly fixed costs>,
+    "competitorPricing": [
+      {"platform": "Instagram Sellers", "priceRange": "₹X–₹Y", "sellerCount": "<estimated active sellers>", "avgRating": "<if applicable>", "deliveryTime": "3-5 days via DM"},
+      {"platform": "Etsy India", "priceRange": "₹X–₹Y", "sellerCount": "<count>", "avgRating": "4.X stars", "deliveryTime": "5-10 days"},
+      {"platform": "Amazon Handmade", "priceRange": "₹X–₹Y", "sellerCount": "<count>", "avgRating": "4.X stars", "deliveryTime": "3-7 days"},
+      {"platform": "Meesho", "priceRange": "₹X–₹Y", "sellerCount": "<count>", "avgRating": "3.X stars", "deliveryTime": "5-9 days"}
+    ],
+    "seasonalFactors": [
+      "<factor 1, e.g. 'Diwali season (Oct-Nov): Can price 20-30% higher for gift-wrapped versions'>",
+      "<factor 2, e.g. 'Valentine's Week (Feb 7-14): Couples themed items sell 3x normal volume'>",
+      "<factor 3, e.g. 'Summer (May-Jun): Slower season — offer 10% early-bird discounts'>",
+      "<factor 4, e.g. 'Raksha Bandhan (Aug): Customized items command 25% premium'>"
+    ],
+    "scalingTips": [
+      "<tip 1 — specific cost-saving advice, e.g. 'Buy yarn in 5kg bulk from wholesale markets — saves 35% vs retail'>",
+      "<tip 2 — e.g. 'Batch-produce top 3 sellers in sets of 10 — reduces per-unit time by 20%'>",
+      "<tip 3 — e.g. 'Negotiate shipping rates with Delhivery/Shiprocket after 30+ monthly orders'>",
+      "<tip 4 — e.g. 'Offer pre-orders to fund material costs — zero inventory risk'>",
+      "<tip 5 — e.g. 'Create a \"ready to ship\" collection for impulse buyers willing to pay 15% more'>"
+    ],
+    "pricingStrategy": "<2-3 sentence strategic recommendation — e.g. 'Position as premium handmade at ₹X-₹Y. Instagram direct sales give highest margin. Use Meesho for volume/discovery but price 10% higher to cover customer acquisition cost.'>",
+    "formulae": [
+      {
+        "name": "Material Cost Per Unit",
+        "formula": "Total Material Cost ÷ Units Produced from Material",
+        "explanation": "How much raw material goes into each product",
+        "example": "₹<actual> yarn + ₹<actual> accessories = ₹<total> per unit (based on current Indian market prices)"
+      },
+      {
+        "name": "Total Production Cost",
+        "formula": "Material Cost + (Labor Hours × ₹<rate>/hr) + Packaging Cost",
+        "explanation": "All costs to produce one finished, packaged product",
+        "example": "₹<mat> + (<hours>h × ₹<rate>) + ₹<pkg> = ₹<total> production cost"
+      },
+      {
+        "name": "Gross Profit (per unit)",
+        "formula": "Selling Price − Production Cost − Shipping − (Selling Price × Platform Fee%)",
+        "explanation": "Profit before monthly fixed costs",
+        "example": "₹<price> − ₹<prod> − ₹<ship> − ₹<fee> = ₹<gross> per unit"
+      },
+      {
+        "name": "Net Profit Margin %",
+        "formula": "(Gross Profit ÷ Selling Price) × 100",
+        "explanation": "What percentage of each sale is actual profit",
+        "example": "(₹<gross> ÷ ₹<price>) × 100 = <margin>%"
+      },
+      {
+        "name": "Monthly Net Profit",
+        "formula": "Gross Profit Per Unit × Monthly Units Sold − Monthly Fixed Costs",
+        "explanation": "Take-home profit after everything — your actual earnings",
+        "example": "₹<gross> × <units> − ₹<fixed> = ₹<monthly> per month"
+      },
+      {
+        "name": "Break-Even Units",
+        "formula": "Monthly Fixed Costs ÷ Gross Profit Per Unit",
+        "explanation": "Minimum units you must sell to not lose money. Fixed costs = phone bill, internet, packaging supplies, Instagram promotion",
+        "example": "₹<fixed> ÷ ₹<gross> = <units> units per month minimum"
+      },
+      {
+        "name": "Return on Investment (ROI)",
+        "formula": "(Monthly Net Profit ÷ Total Monthly Investment) × 100",
+        "explanation": "How much you earn relative to what you invest — includes materials, time, and overhead",
+        "example": "(₹<profit> ÷ ₹<invest>) × 100 = <roi>% monthly ROI"
+      },
+      {
+        "name": "Price Elasticity Suggestion",
+        "formula": "If competitor avg price is ₹X, price at 0.9X for penetration or 1.15X for premium positioning",
+        "explanation": "Strategic pricing relative to competitors — underprice to gain market share, overprice with quality story",
+        "example": "Competitors avg ₹<avg>. Penetration price: ₹<low>. Premium price: ₹<high> (with handmade story + premium packaging)"
+      }
+    ]
+  }
+}
+
+═══ CRITICAL RULES ═══
+1. ALL ₹ amounts must be realistic for the INDIAN market (not USD converted)
+2. Formulae examples MUST contain ACTUAL CALCULATED numbers — never "<fill in>" or "X"
+3. Material costs should reflect current Indian wholesale/retail yarn prices
+4. Labor rates should reflect Indian market (₹100-250/hr depending on skill)
+5. Return ONLY valid JSON — no other text`;
+
+    const response = await getAnthropic().messages.create({
+      model: HAIKU, // Financial data: Haiku handles math and structured output perfectly
+      max_tokens: 3000,
+      messages: [{ role: "user", content: financialPrompt }],
+    });
+
+    const raw = getText(response.content);
+    console.log("  Financial intelligence response:", raw.length, "chars");
+
+    const parsed = extractJSON(raw);
+    if (parsed?.profit) {
+      result.profit = parsed.profit;
+    }
+
+    console.log(`  Profit: ${result.profit ? "yes" : "no"}, Formulae: ${result.profit?.formulae?.length || 0}, Competitors: ${result.profit?.competitorPricing?.length || 0}`);
+  } catch (err) {
+    console.error("Call 1C failed:", (err as Error).message);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CALL 2A: Content Strategy — Expert-level hooks, caption, hashtags
+  // ══════════════════════════════════════════════════════════════════
+  console.log("Call 2A: Content strategy — hooks, caption, hashtags...");
   const trendCtx = result.trends.length > 0
-    ? result.trends.slice(0, 3).map(t => `${t.trend} (${t.momentum})`).join(", ")
+    ? result.trends.slice(0, 5).map(t => `${t.trend} (${t.momentum}, opportunity: ${t.opportunityScore || 'high'})`).join("; ")
     : `${topic} in ${region}`;
 
   const stratCtx = result.strategy
-    ? `Best time: ${result.strategy.bestTime}. Format: ${result.strategy.format}. Angle: ${result.strategy.contentAngle}.`
+    ? `Best time: ${result.strategy.bestTime}. Format: ${result.strategy.format}. Angle: ${result.strategy.contentAngle}. Pillars: ${(result.strategy.contentPillars || []).join(", ")}.`
+    : "";
+
+  const profitCtx = result.profit
+    ? `Price range: ₹${result.profit.estimatedSellingPrice.min}-${result.profit.estimatedSellingPrice.max}. Strategy: ${result.profit.pricingStrategy || 'premium handmade positioning'}.`
     : "";
 
   try {
-    const raw = await cheapWrite(
-      `You write Instagram content for Indian ${niche} businesses.
+    const contentPrompt = `You are a TOP-TIER Instagram content strategist who has grown 50+ Indian handmade brands from 0 to 100K+ followers. You specialize in scroll-stopping hooks and high-converting captions for the Indian market.
 
-CONTEXT:
-- Product: ${topic}
-- Region: ${locationStr}, India
-- Trends: ${trendCtx}
-- Hook style: ${hookStyle}
-- Goal: ${goal}
-${stratCtx ? `- Strategy: ${stratCtx}` : ""}
+═══ BRAND CONTEXT ═══
+Product: "${topic}"
+Niche: ${niche}
+Location: ${locationStr}, India
+Current trends: ${trendCtx}
+Hook style preference: ${hookStyle}
+Business goal: ${goal}
+${stratCtx ? `Strategy context: ${stratCtx}` : ""}
+${profitCtx ? `Pricing context: ${profitCtx}` : ""}
 
-Return a JSON object with these exact keys:
+═══ YOUR TASK ═══
+Create content that STOPS the scroll, drives DMs, and converts followers into buyers. Every piece of content must feel authentic, warm, and specifically Indian — not generic Western marketing.
+
+Return ONLY a valid JSON object:
 
 {
-  "hooks": ["hook1", "hook2", "hook3", "hook4", "hook5", "hook6"],
-  "caption": "150-200 word Instagram caption with hook, story, CTA. Use line breaks.",
-  "hashtags": ["#tag1", "#tag2", "...up to 25 tags"],
-  "agentInsight": "2-3 sentence analysis of why this content strategy works for ${locationStr}"
+  "hooks": [
+    "<hook 1 — curiosity-based, under 12 words, makes them NEED to read more>",
+    "<hook 2 — bold claim or contrarian take>",
+    "<hook 3 — personal story opener>",
+    "<hook 4 — question that targets a pain point>",
+    "<hook 5 — number/statistic-based hook>",
+    "<hook 6 — emotional hook targeting Indian gifting culture>",
+    "<hook 7 — FOMO/scarcity hook>",
+    "<hook 8 — behind-the-scenes teaser>",
+    "<hook 9 — transformation/before-after hook>",
+    "<hook 10 — trend-jacking hook referencing a current trend>"
+  ],
+  "caption": "<250-300 word Instagram caption with this structure:\\n\\n🪝 [HOOK LINE — first line must stop the scroll]\\n\\n[STORY/BODY — 3-4 paragraphs telling a micro-story or sharing value. Include emotional triggers, sensory details about the product, and social proof. Reference Indian cultural context — festivals, gifting, self-care rituals.]\\n\\n[CTA — clear, warm, non-pushy call to action that feels like a friend suggesting something, not a salesperson demanding action]\\n\\n[Use line breaks and emojis strategically — not overloaded, just enough to make it scannable]>",
+  "hashtags": [
+    "<5 viral/high-reach hashtags — 500K+ posts>",
+    "<5 medium-reach niche hashtags — 50K-500K posts>",
+    "<5 micro-niche hashtags — 5K-50K posts>",
+    "<5 local/community hashtags specific to ${locationStr}>",
+    "<5 branded/unique hashtags>"
+  ],
+  "agentInsight": "<DETAILED 5-point strategic brief:\\n\\n1. WHY THIS WORKS: Explain the psychology behind the content strategy\\n2. AUDIENCE TRIGGER: What emotional button this content presses for the target buyer\\n3. ALGORITHM PLAY: How this content will perform with Instagram's algorithm (saves, shares, watch time)\\n4. CONVERSION PATH: The journey from seeing this post to making a purchase\\n5. WEEKLY PLAN: How to build on this content across the week for compounding growth>"
 }
 
-Write 6 hooks (under 15 words each, style: ${hookStyle}). Caption must have a clear CTA. Hashtags should mix popular and niche tags. JSON only, no other text.`
-    );
+═══ CONTENT RULES ═══
+1. Hooks MUST be under 12 words — ruthlessly concise  
+2. Every hook must make someone STOP scrolling — test: would YOU stop?
+3. Caption must feel like a friend talking, NOT a brand announcing
+4. Hashtags must be organized from high-reach to micro-niche (25 total, organized in 5 groups)
+5. Agent insight must be 5+ sentences with SPECIFIC, actionable advice
+6. Reference Indian culture naturally — Diwali, chai conversations, "mummy ka gift", monsoon cozy vibes
+7. Use Hinglish sprinkles where natural (but keep primary language English)
+8. Return ONLY valid JSON`;
+
+    const response = await getAnthropic().messages.create({
+      model: SONNET,
+      max_tokens: 4000,
+      messages: [{ role: "user", content: contentPrompt }],
+    });
+
+    const raw = getText(response.content);
+    console.log("  Content strategy response:", raw.length, "chars");
 
     const parsed = extractJSON(raw);
     if (parsed) {
       result.hooks = Array.isArray(parsed.hooks) ? parsed.hooks : [];
       result.caption = parsed.caption || "";
-      result.hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
+      result.hashtags = Array.isArray(parsed.hashtags) ? parsed.hashtags.flat() : [];
       result.agentInsight = parsed.agentInsight || "";
-    } else {
-      const cm = raw.match(/CAPTION:\s*([\s\S]*?)(?=HASHTAGS:|$)/i);
-      const hm = raw.match(/HASHTAGS:\s*([\s\S]*?)(?=INSIGHT:|$)/i);
-      const im = raw.match(/INSIGHT:\s*([\s\S]*?)$/i);
-      result.caption = cm?.[1]?.trim() || "";
-      result.hashtags = (hm?.[1]?.trim() || "").split(/\s+/).filter(t => t.startsWith("#")).slice(0, 30);
-      result.agentInsight = im?.[1]?.trim() || "";
     }
 
     console.log(`  ${result.hooks.length} hooks, ${result.caption.length} chars caption, ${result.hashtags.length} tags`);
   } catch (err) {
-    console.error("Call 2 failed:", (err as Error).message);
+    // 2A is critical — content is the core output, rethrow
+    const msg = (err as Error).message || String(err);
+    console.error("Call 2A FAILED:", msg);
+    throw new Error(`Content strategy failed: ${msg}`);
   }
 
-  // ── CALL 2B: Ad Copy + ROAS + Reel Script ─────────────────────────
-  console.log("Call 2B: Ad copy + ROAS + reel script...");
+  // ══════════════════════════════════════════════════════════════════
+  // CALL 2B: Ad & Reel Engine — Expert ad copy, ROAS, reel script
+  // ══════════════════════════════════════════════════════════════════
+  console.log("Call 2B: Ad copy + ROAS calculator + reel script...");
   const priceCtx = result.profit
-    ? `Price range: ₹${result.profit.estimatedSellingPrice.min}-${result.profit.estimatedSellingPrice.max}`
+    ? `Price range: ₹${result.profit.estimatedSellingPrice.min}-${result.profit.estimatedSellingPrice.max}. Profit margin: ${result.profit.profitMargin.min}-${result.profit.profitMargin.max}%.`
     : `Product: ${topic}`;
 
   try {
-    const raw = await cheapWrite(
-      `You are an Instagram advertising expert and content creator for Indian handmade businesses.
+    const adPrompt = `You are an expert INSTAGRAM ADVERTISING STRATEGIST and REEL DIRECTOR who has managed ₹50 lakh+ in ad spend for Indian D2C and handmade brands. You know Indian Instagram ad metrics inside-out.
 
-CONTEXT:
-- Product: ${topic}
-- Niche: ${niche}
-- Region: ${locationStr}, India
-- ${priceCtx}
-- Goal: ${goal}
-- Trends: ${trendCtx}
+═══ BRAND CONTEXT ═══
+Product: "${topic}" | Niche: ${niche} | Location: ${locationStr}, India
+${priceCtx}
+Goal: ${goal}
+Trending now: ${trendCtx}
 
-Return a JSON object with these 3 sections:
+═══ YOUR TASK ═══
+Create a complete ad strategy package + a viral reel script. Everything must be specific to "${topic}" — no generic templates.
+
+Return ONLY a valid JSON object:
 
 {
   "adCopy": {
-    "headline": "Under 40 chars — punchy ad headline",
-    "primaryText": "125 chars max — main ad body for Instagram feed",
-    "description": "Under 30 chars — appears below headline",
+    "headline": "<under 40 chars — punchy, benefit-focused, creates curiosity>",
+    "primaryText": "<125 chars max — main ad text that speaks to the buyer's desire, not the product features>",
+    "description": "<under 30 chars — urgency or social proof>",
     "ctaButton": "Shop Now|Learn More|Send Message|Contact Us",
-    "targetAudience": "Describe the ideal target audience for this ad",
+    "targetAudience": "<detailed targeting — demographics, interests, behaviors, lookalike base. Be specific: 'Women 22-38 in ${locationStr}, interested in handmade, sustainable fashion, home decor, gifting. Custom audiences: engaged with similar handmade accounts.'>",
     "adObjective": "Messages|Traffic|Conversions|Reach",
     "variants": [
-      {"headline": "A/B variant 1 headline", "primaryText": "variant 1 primary text"},
-      {"headline": "A/B variant 2 headline", "primaryText": "variant 2 primary text"}
+      {"headline": "<A/B variant 1 — different emotional angle>", "primaryText": "<variant 1 body — test different hook>"},
+      {"headline": "<A/B variant 2 — different benefit focus>", "primaryText": "<variant 2 body — test different CTA style>"},
+      {"headline": "<A/B variant 3 — social proof angle>", "primaryText": "<variant 3 body — test testimonial-style>"}
     ]
   },
   "roas": {
-    "dailyBudget": 200,
-    "estimatedReach": {"min": 1000, "max": 3000},
-    "estimatedClicks": {"min": 20, "max": 60},
-    "costPerClick": {"min": 3, "max": 8},
-    "estimatedConversions": {"min": 1, "max": 5},
-    "costPerConversion": 150,
-    "breakEvenROAS": 2.5,
-    "projectedROAS": 3.8,
-    "monthlyAdSpend": 6000,
-    "monthlyAdRevenue": 22800,
+    "dailyBudget": <realistic daily budget in INR for a small seller, typically ₹150-500>,
+    "estimatedReach": {"min": <conservative daily reach>, "max": <optimistic daily reach>},
+    "estimatedClicks": {"min": <conservative>, "max": <optimistic>},
+    "costPerClick": {"min": <lowest CPC in INR>, "max": <highest CPC>},
+    "estimatedConversions": {"min": <conservative daily conversions>, "max": <optimistic>},
+    "costPerConversion": <average cost per conversion in INR>,
+    "breakEvenROAS": <calculated from profit margin — 1 ÷ margin%>,
+    "projectedROAS": <realistic ROAS for Indian handmade niche>,
+    "monthlyAdSpend": <daily × 30>,
+    "monthlyAdRevenue": <projected monthly revenue from ads>,
+    "weeklyProjection": {
+      "spend": <weekly ad spend>,
+      "revenue": <weekly projected revenue>,
+      "profit": <weekly projected profit from ads>
+    },
+    "scalingRecommendation": "<specific advice on when and how to scale — e.g. 'Start at ₹200/day for 7 days. If ROAS > 3x, increase to ₹400/day. After 14 profitable days, test ₹600/day with broader audience.'>",
     "formulae": [
-      {"name": "ROAS", "formula": "Revenue from Ads ÷ Ad Spend", "explanation": "Return on ad spend — how many rupees you earn per rupee spent", "example": "₹22800 ÷ ₹6000 = 3.8x"},
-      {"name": "CPC", "formula": "Total Ad Spend ÷ Total Clicks", "explanation": "Cost per click", "example": "₹200 ÷ 40 clicks = ₹5/click"},
-      {"name": "CPM", "formula": "(Ad Spend ÷ Impressions) × 1000", "explanation": "Cost per 1000 impressions", "example": "₹200 ÷ 2000 × 1000 = ₹100 CPM"},
-      {"name": "Conversion Rate", "formula": "(Conversions ÷ Clicks) × 100", "explanation": "% of clicks that become sales", "example": "3 ÷ 40 × 100 = 7.5%"},
-      {"name": "Break-Even ROAS", "formula": "1 ÷ Profit Margin%", "explanation": "Minimum ROAS needed to not lose money", "example": "1 ÷ 0.40 = 2.5x"},
-      {"name": "Monthly Ad ROI", "formula": "(Monthly Ad Revenue - Monthly Ad Spend) ÷ Monthly Ad Spend × 100", "explanation": "Percentage return on your ad investment", "example": "(₹22800 - ₹6000) ÷ ₹6000 × 100 = 280%"}
+      {"name": "ROAS", "formula": "Revenue from Ads ÷ Ad Spend", "explanation": "Return on ad spend — below 1x means losing money, 3x+ is profitable", "example": "₹<revenue> ÷ ₹<spend> = <roas>x"},
+      {"name": "CPC (Cost Per Click)", "formula": "Total Ad Spend ÷ Total Clicks", "explanation": "How much each click costs — lower is better", "example": "₹<spend> ÷ <clicks> = ₹<cpc> per click"},
+      {"name": "CPM (Cost Per 1000 Views)", "formula": "(Ad Spend ÷ Impressions) × 1000", "explanation": "Cost to show your ad to 1000 people", "example": "(₹<spend> ÷ <impressions>) × 1000 = ₹<cpm>"},
+      {"name": "Conversion Rate", "formula": "(Conversions ÷ Clicks) × 100", "explanation": "What % of people who click actually buy", "example": "(<conv> ÷ <clicks>) × 100 = <rate>%"},
+      {"name": "Break-Even ROAS", "formula": "1 ÷ Profit Margin (as decimal)", "explanation": "The minimum ROAS needed to not lose money on ads", "example": "1 ÷ <margin> = <beroas>x minimum"},
+      {"name": "Monthly Ad ROI", "formula": "(Monthly Ad Revenue − Monthly Ad Spend) ÷ Monthly Ad Spend × 100", "explanation": "Percentage return on your ad investment", "example": "(₹<rev> − ₹<spend>) ÷ ₹<spend> × 100 = <roi>%"}
     ]
   },
   "reelScript": {
     "duration": "30s",
-    "totalShots": 5,
-    "trendingAudio": "suggest a trending audio style or song name",
+    "totalShots": 7,
+    "trendingAudio": "<suggest a specific trending audio style or song — e.g. 'Soft lo-fi beat with text reveal timing' or 'Oh No by Kreepa — product reveal format'>",
     "shots": [
-      {"shotNumber": 1, "duration": "3s", "visual": "what to show", "textOverlay": "text on screen", "transition": "cut/zoom/slide"},
-      {"shotNumber": 2, "duration": "5s", "visual": "what to show", "textOverlay": "text on screen", "transition": "transition type"},
-      {"shotNumber": 3, "duration": "7s", "visual": "what to show", "textOverlay": "text on screen", "transition": "transition type"},
-      {"shotNumber": 4, "duration": "8s", "visual": "what to show", "textOverlay": "text on screen", "transition": "transition type"},
-      {"shotNumber": 5, "duration": "7s", "visual": "what to show — CTA shot", "textOverlay": "CTA text", "transition": "fade"}
+      {"shotNumber": 1, "duration": "2s", "visual": "<SPECIFIC visual for THIS product — not generic. e.g. 'Close-up of hands pulling yarn through a loop, warm golden-hour lighting on a wooden table'>", "textOverlay": "<exact text on screen>", "transition": "quick zoom in", "bRollSuggestion": "<optional alternative shot>"},
+      {"shotNumber": 2, "duration": "4s", "visual": "<specific visual>", "textOverlay": "<text>", "transition": "smooth slide left", "bRollSuggestion": "<alt shot>"},
+      {"shotNumber": 3, "duration": "5s", "visual": "<specific visual>", "textOverlay": "<text>", "transition": "beat drop cut", "bRollSuggestion": "<alt shot>"},
+      {"shotNumber": 4, "duration": "5s", "visual": "<specific visual>", "textOverlay": "<text>", "transition": "slow zoom out", "bRollSuggestion": "<alt shot>"},
+      {"shotNumber": 5, "duration": "5s", "visual": "<specific visual>", "textOverlay": "<text>", "transition": "whip pan", "bRollSuggestion": "<alt shot>"},
+      {"shotNumber": 6, "duration": "5s", "visual": "<specific visual>", "textOverlay": "<text>", "transition": "smooth fade", "bRollSuggestion": "<alt shot>"},
+      {"shotNumber": 7, "duration": "4s", "visual": "<CTA shot — product styled beautifully with clear call to action>", "textOverlay": "<CTA text — DM/link/comment>", "transition": "fade to black", "bRollSuggestion": "<alt shot>"}
     ],
-    "captionForReel": "Short punchy caption for the Reel post",
-    "postingTip": "One specific tip for maximizing this Reel's reach"
+    "captionForReel": "<short, punchy reel caption with 1-2 relevant hashtags>",
+    "postingTip": "<one specific, expert tip for maximizing THIS reel's reach>",
+    "musicBeatSync": "<specific timing notes — e.g. 'Drop text at 0:03 on first beat. Product reveal at 0:08 on bass drop. Final CTA on last 4 seconds during audio fadeout.'>"
   }
 }
 
-IMPORTANT:
-- Use REALISTIC Indian Instagram ad metrics (CPM ₹80-150, CPC ₹3-10 for handmade niche)
-- Ad copy must be compelling, not generic. Write as if spending real money.
-- Reel script should be specific to "${topic}" — describe actual shots, not generic placeholders
-- ROAS formulae examples must have real calculated numbers
-- JSON only, no other text.`, 2500
-    );
+═══ CRITICAL RULES ═══
+1. ALL metrics must reflect INDIAN Instagram ad benchmarks: CPM ₹80-200, CPC ₹3-12, conversion rate 2-8% for handmade
+2. Ad copy must be business-grade — as if spending real money. No fluff.
+3. Reel script visuals must describe ACTUAL shots for "${topic}" — not "show the product"
+4. ROAS formulae must have REAL calculated numbers matching the metrics above
+5. Include 3 ad variants (not 2) for proper A/B testing
+6. Return ONLY valid JSON`;
+
+    const response = await getAnthropic().messages.create({
+      model: SONNET,
+      max_tokens: 4000,
+      messages: [{ role: "user", content: adPrompt }],
+    });
+
+    const raw = getText(response.content);
+    console.log("  Ad & reel response:", raw.length, "chars");
 
     const parsed = extractJSON(raw);
     if (parsed) {
@@ -475,52 +701,78 @@ IMPORTANT:
 
     console.log(`  Ad copy: ${result.adCopy ? "yes" : "no"}, ROAS: ${result.roas ? "yes" : "no"}, Reel: ${result.reelScript ? "yes" : "no"}`);
   } catch (err) {
-    console.error("Call 2B failed:", (err as Error).message);
+    // 2B is critical — ad copy + reel is core output, rethrow
+    const msg = (err as Error).message || String(err);
+    console.error("Call 2B FAILED:", msg);
+    throw new Error(`Ad & reel engine failed: ${msg}`);
   }
 
-  // ── CALL 3: Image Analysis + Pinterest (conditional) ──────────────
+  // ══════════════════════════════════════════════════════════════════
+  // CALL 3: Image Analysis + Pinterest (conditional)
+  // ══════════════════════════════════════════════════════════════════
   if (imageBase64 && imageMimeType) {
     console.log("Call 3: Image analysis + Pinterest suggestions...");
     try {
-      const visionPrompt = `You are an expert Instagram content strategist and product photographer for the handmade/crochet market.
+      const visionPrompt = `You are an expert INSTAGRAM VISUAL STRATEGIST and PRODUCT PHOTOGRAPHER who has styled 1000+ product photoshoots for Indian handmade brands. You know exactly what makes a product photo go viral on Instagram.
 
-Analyze this product image and search Pinterest for similar trending content.
+Analyze this product image with an expert eye. Search Pinterest for similar trending content to generate ideas.
 
+═══ CONTEXT ═══
+Product niche: "${topic}" / "${niche}"
+Target market: ${locationStr}, India
+
+═══ YOUR TASK ═══
 Return ONLY a valid JSON object:
 
 {
   "imageAnalysis": {
-    "productType": "what this product is",
-    "colors": ["color1", "color2", "color3"],
-    "style": "minimal/boho/vintage/modern/rustic/kawaii",
-    "instagramReadiness": 75,
-    "lightingScore": 80,
-    "compositionScore": 70,
-    "colorHarmonyScore": 75,
-    "productClarityScore": 80,
-    "improvements": ["tip 1", "tip 2", "tip 3", "tip 4", "tip 5"]
+    "productType": "<detailed description of what this product is>",
+    "colors": ["<color 1>", "<color 2>", "<color 3>", "<color 4>"],
+    "style": "<aesthetic category: minimal/boho/vintage/modern/rustic/kawaii/cottagecore/maximalist>",
+    "instagramReadiness": <calculated score = (Lighting×0.30) + (Composition×0.30) + (ColorHarmony×0.20) + (ProductClarity×0.20)>,
+    "lightingScore": <0-100>,
+    "compositionScore": <0-100>,
+    "colorHarmonyScore": <0-100>,
+    "productClarityScore": <0-100>,
+    "improvements": [
+      "<improvement 1 — SPECIFIC, actionable, not generic. e.g. 'Move the product 2 inches left and add a small dried flower sprig for visual balance'>",
+      "<improvement 2>",
+      "<improvement 3>",
+      "<improvement 4>",
+      "<improvement 5>",
+      "<improvement 6>"
+    ],
+    "moodKeywords": ["<keyword 1>", "<keyword 2>", "<keyword 3>", "<keyword 4>", "<keyword 5>"],
+    "suggestedFilters": ["<Instagram/editing filter 1>", "<filter 2>", "<filter 3>"],
+    "bestPostingContext": "<specific recommendation — e.g. 'Best for: Instagram carousel (slide 1 as hero). Use as first image with 4 lifestyle context shots following.'>"
   },
   "pinterestSuggestions": [
-    {"idea": "content idea", "whyItWorks": "reason", "searchTerms": ["term1", "term2"], "estimatedEngagement": "high"},
-    {"idea": "content idea", "whyItWorks": "reason", "searchTerms": ["term1", "term2"], "estimatedEngagement": "medium"},
-    {"idea": "content idea", "whyItWorks": "reason", "searchTerms": ["term1", "term2"], "estimatedEngagement": "high"},
-    {"idea": "content idea", "whyItWorks": "reason", "searchTerms": ["term1", "term2"], "estimatedEngagement": "medium"},
-    {"idea": "content idea", "whyItWorks": "reason", "searchTerms": ["term1", "term2"], "estimatedEngagement": "low"}
+    {
+      "idea": "<specific content idea inspired by Pinterest trends>",
+      "whyItWorks": "<psychology behind why this type of content performs>",
+      "searchTerms": ["<Pinterest search term 1>", "<term 2>", "<term 3>"],
+      "estimatedEngagement": "high"
+    },
+    <provide exactly 6 Pinterest-inspired content ideas>
   ]
 }
 
-Scoring: instagramReadiness = (Lighting×0.30) + (Composition×0.30) + (ColorHarmony×0.20) + (ProductClarity×0.20)
-90-100=Post-ready, 70-89=Good, 50-69=Needs work, 0-49=Re-shoot
+═══ SCORING GUIDE ═══
+- 90-100: Post-ready — professional quality, no edits needed
+- 70-89: Good — minor tweaks will make it great
+- 50-69: Needs work — specific improvements needed
+- 0-49: Re-shoot recommended — fundamental issues
 
-Search Pinterest for trending "${topic}" and "${niche}" content ideas. Return exactly 5 suggestions. JSON only.`;
+Be HONEST in scoring. Most phone photos score 55-75. Don't inflate.
+Return ONLY valid JSON.`;
 
       const response = await getAnthropic().messages.create({
-        model: SEARCH_MODEL,
-        max_tokens: 2000,
+        model: SONNET,
+        max_tokens: 3000,
         tools: [{
           type: "web_search_20250305" as any,
           name: "web_search",
-          max_uses: 2,
+          max_uses: 3,
         } as any],
         messages: [{
           role: "user",
@@ -553,6 +805,6 @@ Search Pinterest for trending "${topic}" and "${niche}" content ideas. Return ex
     }
   }
 
-  console.log("Pipeline v2 complete!\n");
+  console.log("Pipeline v3 complete!\n");
   return result;
 }

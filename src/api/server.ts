@@ -260,7 +260,7 @@ app.post(
       };
 
       const response = await client.messages.create({
-        model: "claude-3-haiku-20240307",
+        model: "claude-haiku-4-5-20251001", // Haiku 4.5 — fast, cheap, great for short messages
         max_tokens: 300,
         messages: [{
           role: "user",

@@ -263,23 +263,48 @@ function renderResults(d) {
     html += '</div>';
   }
 
-  // Trends
+  // Trends — Enhanced with opportunity scores, search volume, action tips
   if (d.trends && d.trends.length) {
     try { localStorage.setItem("stiche_recent_trends", JSON.stringify(d.trends)); } catch(e){}
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Live Trends</h2></div><div class="trend-list">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Live Trends (' + d.trends.length + ')</h2></div><div class="trend-list">';
     d.trends.forEach(function(t) {
-      html += '<div class="trend-card"><div class="trend-name">' + esc(t.trend) + '</div><div class="trend-meta"><span class="momentum ' + t.momentum + '">' + t.momentum + '</span><span class="trend-region">' + esc(t.region) + '</span></div><div class="trend-why">' + esc(t.why) + '</div></div>';
+      html += '<div class="trend-card">';
+      html += '<div class="trend-name">' + esc(t.trend);
+      if (t.opportunityScore) html += ' <span class="opportunity-score" title="Opportunity Score">' + t.opportunityScore + '/100</span>';
+      html += '</div>';
+      html += '<div class="trend-meta"><span class="momentum ' + t.momentum + '">' + t.momentum + '</span><span class="trend-region">' + esc(t.region) + '</span></div>';
+      html += '<div class="trend-why">' + esc(t.why) + '</div>';
+      // New enhanced fields
+      if (t.searchVolume || t.competitorCount) {
+        html += '<div class="trend-details">';
+        if (t.searchVolume) html += '<span class="trend-detail-item">📊 ' + esc(t.searchVolume) + '</span>';
+        if (t.competitorCount) html += '<span class="trend-detail-item">👥 ' + esc(t.competitorCount) + '</span>';
+        html += '</div>';
+      }
+      if (t.actionTip) {
+        html += '<div class="trend-action-tip">💡 ' + esc(t.actionTip) + '</div>';
+      }
+      html += '</div>';
     });
     html += '</div></div>';
   }
 
-  // Traffic
+  // Traffic — Enhanced with demographics, conversion, seasonal notes
   if (d.traffic && d.traffic.length) {
     var dirL = { up: "Growing", stable: "Stable", down: "Declining" };
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Audience Traffic</h2></div><div class="card"><div class="traffic-items">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Audience Traffic (' + d.traffic.length + ' regions)</h2></div><div class="card"><div class="traffic-items">';
     d.traffic.forEach(function(t) {
       var dir = t.trend || "stable";
-      html += '<div><div class="traffic-top"><span class="traffic-label">' + esc(t.region) + ' <span class="traffic-dir ' + dir + '">' + (dirL[dir] || dir) + '</span></span><span class="traffic-score">' + t.score + '/100</span></div><div class="bar-track"><div class="bar-fill" data-w="' + t.score + '"></div></div><div class="traffic-note">' + esc(t.insight) + '</div></div>';
+      html += '<div><div class="traffic-top"><span class="traffic-label">' + esc(t.region) + ' <span class="traffic-dir ' + dir + '">' + (dirL[dir] || dir) + '</span></span><span class="traffic-score">' + t.score + '/100</span></div><div class="bar-track"><div class="bar-fill" data-w="' + t.score + '"></div></div><div class="traffic-note">' + esc(t.insight) + '</div>';
+      // New enhanced fields
+      if (t.demographicBreakdown || t.conversionPotential || t.seasonalNote) {
+        html += '<div class="traffic-enhanced">';
+        if (t.demographicBreakdown) html += '<div class="traffic-detail"><span class="detail-icon">👤</span> ' + esc(t.demographicBreakdown) + '</div>';
+        if (t.conversionPotential) html += '<div class="traffic-detail"><span class="detail-icon">🎯</span> ' + esc(t.conversionPotential) + '</div>';
+        if (t.seasonalNote) html += '<div class="traffic-detail"><span class="detail-icon">📅</span> ' + esc(t.seasonalNote) + '</div>';
+        html += '</div>';
+      }
+      html += '</div>';
     });
     html += '</div></div></div>';
   }
@@ -306,44 +331,97 @@ function renderResults(d) {
     html += '</div></div>';
   }
 
-  // Customer Personas
+  // Customer Personas — Enhanced with social media behavior, triggers, platforms
   if (d.customers && d.customers.length) {
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Customer Personas</h2></div><div class="persona-list">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Customer Personas (' + d.customers.length + ')</h2></div><div class="persona-list">';
     d.customers.forEach(function(c) {
       var intent = c.buyingIntent || "medium";
-      html += '<div class="persona-card"><div class="persona-header"><div><div class="persona-name">' + esc(c.name) + '</div><div class="persona-age">' + esc(c.age) + '</div></div><span class="intent-badge ' + intent + '">' + intent + ' intent</span></div><div class="persona-location">' + esc(c.location) + '</div><div class="persona-behavior">' + esc(c.behavior) + '</div></div>';
+      html += '<div class="persona-card">';
+      html += '<div class="persona-header"><div><div class="persona-name">' + esc(c.name) + '</div><div class="persona-age">' + esc(c.age) + '</div></div><span class="intent-badge ' + intent + '">' + intent + ' intent</span></div>';
+      html += '<div class="persona-location">' + esc(c.location) + '</div>';
+      html += '<div class="persona-behavior">' + esc(c.behavior) + '</div>';
+      // New enhanced fields
+      if (c.socialMediaBehavior) {
+        html += '<div class="persona-detail"><span class="detail-label">📱 Social Media:</span> ' + esc(c.socialMediaBehavior) + '</div>';
+      }
+      if (c.priceRange) {
+        html += '<div class="persona-detail"><span class="detail-label">💰 Budget:</span> ' + esc(c.priceRange) + '</div>';
+      }
+      if (c.purchaseTriggers && c.purchaseTriggers.length) {
+        html += '<div class="persona-triggers"><span class="detail-label">🎯 Triggers:</span> ';
+        c.purchaseTriggers.forEach(function(tr) { html += '<span class="trigger-tag">' + esc(tr) + '</span>'; });
+        html += '</div>';
+      }
+      if (c.preferredPlatforms && c.preferredPlatforms.length) {
+        html += '<div class="persona-platforms"><span class="detail-label">🛒 Buys on:</span> ';
+        c.preferredPlatforms.forEach(function(pl) { html += '<span class="platform-tag">' + esc(pl) + '</span>'; });
+        html += '</div>';
+      }
+      html += '</div>';
     });
     html += '</div></div>';
   }
 
-  // Purchase Demand
+  // Purchase Demand — Enhanced with price range, seasonal peak, competition
   if (d.purchases && d.purchases.length) {
     var dirS = { up: "Up", stable: "Stable", down: "Down" };
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Purchase Demand</h2></div><div class="card"><div class="chart-container">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Purchase Demand (' + d.purchases.length + ' categories)</h2></div><div class="card"><div class="chart-container">';
     d.purchases.forEach(function(p) {
       var dir = p.trend || "stable";
-      html += '<div class="chart-bar-row"><div class="chart-label">' + esc(p.category) + ' <span class="chart-trend-tag ' + dir + '">' + (dirS[dir] || dir) + '</span></div><div class="chart-bar-wrapper"><div class="chart-bar-track"><div class="chart-bar-fill ' + dir + '" data-w="' + p.score + '">' + p.score + '</div></div><div class="chart-insight">' + esc(p.insight) + '</div></div></div>';
+      html += '<div class="chart-bar-row"><div class="chart-label">' + esc(p.category) + ' <span class="chart-trend-tag ' + dir + '">' + (dirS[dir] || dir) + '</span></div><div class="chart-bar-wrapper"><div class="chart-bar-track"><div class="chart-bar-fill ' + dir + '" data-w="' + p.score + '">' + p.score + '</div></div><div class="chart-insight">' + esc(p.insight) + '</div>';
+      // New enhanced fields
+      if (p.avgPriceRange || p.seasonalPeak || p.competitionLevel) {
+        html += '<div class="purchase-enhanced">';
+        if (p.avgPriceRange) html += '<span class="purchase-meta">₹ ' + esc(p.avgPriceRange) + '</span>';
+        if (p.seasonalPeak) html += '<span class="purchase-meta">📅 ' + esc(p.seasonalPeak) + '</span>';
+        if (p.competitionLevel) html += '<span class="purchase-meta">⚔️ ' + esc(p.competitionLevel) + '</span>';
+        html += '</div>';
+      }
+      html += '</div></div>';
     });
     html += '</div></div></div>';
   }
 
-  // Strategy
+  // Strategy — Enhanced with content pillars, posting frequency, growth tips, engagement tactics
   if (d.strategy) {
     var s = d.strategy;
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Content Strategy</h2></div><div class="strategy-grid">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Content Strategy Blueprint</h2></div><div class="strategy-grid">';
     html += '<div class="strat-card"><div class="strat-label">Best Time</div><div class="strat-value">' + esc(s.bestTime) + '</div></div>';
     html += '<div class="strat-card"><div class="strat-label">Best Day</div><div class="strat-value">' + esc(s.bestDay) + '</div></div>';
     html += '<div class="strat-card"><div class="strat-label">Format</div><div class="strat-value">' + esc(s.format) + '</div></div>';
     html += '<div class="strat-card"><div class="strat-label">Content Angle</div><div class="strat-value">' + esc(s.contentAngle) + '</div></div>';
     html += '<div class="strat-card strat-wide"><div class="strat-label">CTA Suggestion</div><div class="strat-value">' + esc(s.ctaSuggestion) + '</div></div>';
     html += '<div class="strat-card strat-wide"><div class="strat-label">Competitor Gap</div><div class="strat-value strat-highlight">' + esc(s.competitorGap) + '</div></div>';
-    html += '</div></div>';
+    html += '</div>';
+    // New: Posting Frequency
+    if (s.postingFrequency) {
+      html += '<div class="strat-extra"><div class="strat-label">📆 Posting Schedule</div><div class="strat-value">' + esc(s.postingFrequency) + '</div></div>';
+    }
+    // New: Content Pillars
+    if (s.contentPillars && s.contentPillars.length) {
+      html += '<div class="strat-section"><div class="section-label">Content Pillars</div><div class="pillars-list">';
+      s.contentPillars.forEach(function(p, i) { html += '<div class="pillar-item"><span class="pillar-num">' + (i + 1) + '</span>' + esc(p) + '</div>'; });
+      html += '</div></div>';
+    }
+    // New: Audience Growth Tips
+    if (s.audienceGrowthTips && s.audienceGrowthTips.length) {
+      html += '<div class="strat-section"><div class="section-label">🚀 Growth Tips</div><div class="tips-list">';
+      s.audienceGrowthTips.forEach(function(tip) { html += '<div class="growth-tip-item">✦ ' + esc(tip) + '</div>'; });
+      html += '</div></div>';
+    }
+    // New: Engagement Tactics
+    if (s.engagementTactics && s.engagementTactics.length) {
+      html += '<div class="strat-section"><div class="section-label">💬 Engagement Tactics</div><div class="tactics-list">';
+      s.engagementTactics.forEach(function(tac) { html += '<div class="tactic-item">→ ' + esc(tac) + '</div>'; });
+      html += '</div></div>';
+    }
+    html += '</div>';
   }
 
-  // Image Analysis
+  // Image Analysis — Enhanced with mood, filters, posting context
   if (d.imageAnalysis) {
     var ia = d.imageAnalysis;
-    var readinessLabel = ia.instagramReadiness >= 90 ? "Post-ready" : ia.instagramReadiness >= 70 ? "Good -- minor tweaks" : ia.instagramReadiness >= 50 ? "Needs improvement" : "Re-shoot recommended";
+    var readinessLabel = ia.instagramReadiness >= 90 ? "Post-ready" : ia.instagramReadiness >= 70 ? "Good — minor tweaks" : ia.instagramReadiness >= 50 ? "Needs improvement" : "Re-shoot recommended";
     var readinessColor = ia.instagramReadiness >= 70 ? "var(--steady)" : ia.instagramReadiness >= 50 ? "var(--rising)" : "var(--hot)";
 
     html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Image Analysis</h2></div>';
@@ -357,6 +435,20 @@ function renderResults(d) {
     ];
     scores.forEach(function(sc) { html += renderScoreRing(sc.label, sc.val); });
     html += '</div>';
+    // New: Mood & Filters
+    if (ia.moodKeywords && ia.moodKeywords.length) {
+      html += '<div class="image-detail-row"><span class="detail-label">🎨 Mood:</span> ';
+      ia.moodKeywords.forEach(function(k) { html += '<span class="mood-tag">' + esc(k) + '</span>'; });
+      html += '</div>';
+    }
+    if (ia.suggestedFilters && ia.suggestedFilters.length) {
+      html += '<div class="image-detail-row"><span class="detail-label">✨ Filters:</span> ';
+      ia.suggestedFilters.forEach(function(f) { html += '<span class="filter-tag">' + esc(f) + '</span>'; });
+      html += '</div>';
+    }
+    if (ia.bestPostingContext) {
+      html += '<div class="image-detail-row"><span class="detail-label">📸 Best Use:</span> ' + esc(ia.bestPostingContext) + '</div>';
+    }
     if (ia.improvements && ia.improvements.length) {
       html += '<div class="improvements-list">';
       ia.improvements.forEach(function(tip) { html += '<div class="improvement-item"><span class="improvement-icon">*</span>' + esc(tip) + '</div>'; });
@@ -367,7 +459,7 @@ function renderResults(d) {
 
   // Pinterest Suggestions
   if (d.pinterestSuggestions && d.pinterestSuggestions.length) {
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Pinterest-Inspired Ideas</h2></div><div class="pinterest-list">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Pinterest-Inspired Ideas (' + d.pinterestSuggestions.length + ')</h2></div><div class="pinterest-list">';
     d.pinterestSuggestions.forEach(function(p) {
       html += '<div class="pinterest-card"><div class="pin-idea">' + esc(p.idea) + '</div><div class="pin-why">' + esc(p.whyItWorks) + '</div><div class="pin-meta">';
       if (p.searchTerms) p.searchTerms.forEach(function(t) { html += '<span class="pin-term">' + esc(t) + '</span>'; });
@@ -376,18 +468,39 @@ function renderResults(d) {
     html += '</div></div>';
   }
 
-  // Profit Calculator
+  // Profit Calculator — Enhanced with competitor pricing, seasonal factors, scaling tips, pricing strategy
   if (d.profit) {
     var pr = d.profit;
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Profit Calculator</h2></div>';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Profit & Financial Intelligence</h2></div>';
     html += '<div class="profit-summary">';
     html += '<div class="profit-card"><div class="profit-label">Selling Price</div><div class="profit-val">₹' + pr.estimatedSellingPrice.min + '–' + pr.estimatedSellingPrice.max + '</div></div>';
     html += '<div class="profit-card"><div class="profit-label">Material Cost</div><div class="profit-val">₹' + pr.materialCost.min + '–' + pr.materialCost.max + '</div></div>';
     html += '<div class="profit-card"><div class="profit-label">Labor Hours</div><div class="profit-val">' + pr.laborHours.min + '–' + pr.laborHours.max + 'h</div><div class="profit-range">@ ₹' + pr.laborCostPerHour + '/hr</div></div>';
     html += '<div class="profit-card"><div class="profit-label">Shipping</div><div class="profit-val">₹' + pr.shippingEstimate + '</div></div>';
+    if (pr.packagingCost) html += '<div class="profit-card"><div class="profit-label">Packaging</div><div class="profit-val">₹' + pr.packagingCost + '</div></div>';
+    if (pr.photographyCost != null) html += '<div class="profit-card"><div class="profit-label">Photography</div><div class="profit-val">₹' + pr.photographyCost + '</div></div>';
     html += '<div class="profit-card highlight"><div class="profit-label">Profit Margin</div><div class="profit-val green">' + pr.profitMargin.min + '–' + pr.profitMargin.max + '%</div></div>';
     html += '<div class="profit-card highlight"><div class="profit-label">Monthly Potential</div><div class="profit-val green">₹' + formatNum(pr.monthlyPotential.profit) + '</div><div class="profit-range">' + pr.monthlyPotential.units + ' units · ₹' + formatNum(pr.monthlyPotential.revenue) + ' rev</div></div>';
     html += '</div>';
+
+    // New: Pricing Strategy
+    if (pr.pricingStrategy) {
+      html += '<div class="pricing-strategy"><div class="section-label">💡 Pricing Strategy</div><div class="strategy-text">' + esc(pr.pricingStrategy) + '</div></div>';
+    }
+
+    // New: Competitor Pricing
+    if (pr.competitorPricing && pr.competitorPricing.length) {
+      html += '<div class="competitor-pricing"><div class="section-label">⚔️ Competitor Pricing</div><div class="competitor-grid">';
+      pr.competitorPricing.forEach(function(cp) {
+        html += '<div class="competitor-card"><div class="comp-platform">' + esc(cp.platform) + '</div>';
+        html += '<div class="comp-price">' + esc(cp.priceRange) + '</div>';
+        if (cp.sellerCount) html += '<div class="comp-meta">' + esc(cp.sellerCount) + ' sellers</div>';
+        if (cp.avgRating) html += '<div class="comp-meta">⭐ ' + esc(cp.avgRating) + '</div>';
+        if (cp.deliveryTime) html += '<div class="comp-meta">📦 ' + esc(cp.deliveryTime) + '</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
 
     if (pr.platformFees && pr.platformFees.length) {
       html += '<div class="platform-fees">';
@@ -397,8 +510,22 @@ function renderResults(d) {
       html += '</div>';
     }
 
+    // New: Seasonal Factors
+    if (pr.seasonalFactors && pr.seasonalFactors.length) {
+      html += '<div class="strat-section"><div class="section-label">📅 Seasonal Pricing Factors</div><div class="seasonal-list">';
+      pr.seasonalFactors.forEach(function(sf) { html += '<div class="seasonal-item">📌 ' + esc(sf) + '</div>'; });
+      html += '</div></div>';
+    }
+
+    // New: Scaling Tips
+    if (pr.scalingTips && pr.scalingTips.length) {
+      html += '<div class="strat-section"><div class="section-label">📈 Scaling Tips</div><div class="scaling-list">';
+      pr.scalingTips.forEach(function(st) { html += '<div class="scaling-item">✦ ' + esc(st) + '</div>'; });
+      html += '</div></div>';
+    }
+
     if (pr.formulae && pr.formulae.length) {
-      html += '<button class="formulas-toggle" onclick="toggleFormulas()">Show All Formulas & Logic</button>';
+      html += '<button class="formulas-toggle" onclick="toggleFormulas()">Show All Formulas & Logic (' + pr.formulae.length + ')</button>';
       html += '<div class="formulas-content" id="formulasContent">';
       pr.formulae.forEach(function(f) {
         html += '<div class="formula-card"><div class="formula-name">' + esc(f.name) + '</div><div class="formula-expr">' + esc(f.formula) + '</div><div class="formula-explain">' + esc(f.explanation) + '</div><div class="formula-example">Example: ' + esc(f.example) + '</div></div>';
@@ -415,7 +542,7 @@ function renderResults(d) {
     html += '<div class="ad-preview"><div class="ad-headline">' + esc(ac.headline) + '</div><div class="ad-primary">' + esc(ac.primaryText) + '</div><div class="ad-desc">' + esc(ac.description) + '</div><div class="ad-cta">' + esc(ac.ctaButton) + '</div></div>';
     html += '<div class="ad-meta-grid"><div class="ad-meta-card"><div class="ad-meta-label">Target Audience</div><div class="ad-meta-val">' + esc(ac.targetAudience) + '</div></div><div class="ad-meta-card"><div class="ad-meta-label">Ad Objective</div><div class="ad-meta-val">' + esc(ac.adObjective) + '</div></div></div>';
     if (ac.variants && ac.variants.length) {
-      html += '<div class="section-label" style="margin-top:12px">A/B Test Variants</div>';
+      html += '<div class="section-label" style="margin-top:12px">A/B Test Variants (' + ac.variants.length + ')</div>';
       ac.variants.forEach(function(v, i) {
         html += '<div class="variant-card"><div class="variant-label">Variant ' + String.fromCharCode(65 + i) + '</div><div class="variant-headline">' + esc(v.headline) + '</div><div class="variant-text">' + esc(v.primaryText) + '</div></div>';
       });
@@ -423,7 +550,7 @@ function renderResults(d) {
     html += '</div>';
   }
 
-  // ROAS Calculator
+  // ROAS Calculator — Enhanced with weekly projection and scaling
   if (d.roas) {
     var ro = d.roas;
     html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Ad Budget & ROAS Calculator</h2></div>';
@@ -437,8 +564,20 @@ function renderResults(d) {
     html += '<div class="roas-card highlight"><div class="profit-label">Projected ROAS</div><div class="roas-val green">' + ro.projectedROAS + 'x</div></div>';
     html += '<div class="roas-card highlight"><div class="profit-label">Monthly Ad Revenue</div><div class="roas-val green">₹' + formatNum(ro.monthlyAdRevenue) + '</div></div>';
     html += '</div>';
+    // New: Weekly Projection
+    if (ro.weeklyProjection) {
+      html += '<div class="weekly-projection"><div class="section-label">📊 Weekly Projection</div><div class="weekly-grid">';
+      html += '<div class="weekly-card"><div class="profit-label">Weekly Spend</div><div class="roas-val">₹' + formatNum(ro.weeklyProjection.spend) + '</div></div>';
+      html += '<div class="weekly-card"><div class="profit-label">Weekly Revenue</div><div class="roas-val">₹' + formatNum(ro.weeklyProjection.revenue) + '</div></div>';
+      html += '<div class="weekly-card highlight"><div class="profit-label">Weekly Profit</div><div class="roas-val green">₹' + formatNum(ro.weeklyProjection.profit) + '</div></div>';
+      html += '</div></div>';
+    }
+    // New: Scaling Recommendation
+    if (ro.scalingRecommendation) {
+      html += '<div class="scaling-rec"><div class="section-label">🚀 Scaling Strategy</div><div class="strategy-text">' + esc(ro.scalingRecommendation) + '</div></div>';
+    }
     if (ro.formulae && ro.formulae.length) {
-      html += '<button class="formulas-toggle" onclick="toggleROASFormulas()">Show ROAS Formulas</button>';
+      html += '<button class="formulas-toggle" onclick="toggleROASFormulas()">Show ROAS Formulas (' + ro.formulae.length + ')</button>';
       html += '<div class="formulas-content" id="roasFormulasContent">';
       ro.formulae.forEach(function(f) {
         html += '<div class="formula-card"><div class="formula-name">' + esc(f.name) + '</div><div class="formula-expr">' + esc(f.formula) + '</div><div class="formula-explain">' + esc(f.explanation) + '</div><div class="formula-example">Example: ' + esc(f.example) + '</div></div>';
@@ -448,15 +587,24 @@ function renderResults(d) {
     html += '</div>';
   }
 
-  // Reel Script
+  // Reel Script — Enhanced with B-roll and beat sync
   if (d.reelScript) {
     var rs = d.reelScript;
     html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Reel Script</h2></div>';
     html += '<div class="reel-header"><span class="reel-badge">' + esc(rs.duration) + ' / ' + rs.totalShots + ' shots</span><span class="reel-audio">Audio: <strong>' + esc(rs.trendingAudio) + '</strong></span></div>';
+    // New: Music Beat Sync
+    if (rs.musicBeatSync) {
+      html += '<div class="beat-sync"><span class="detail-label">🎵 Beat Sync:</span> ' + esc(rs.musicBeatSync) + '</div>';
+    }
     if (rs.shots && rs.shots.length) {
       html += '<div class="reel-timeline">';
       rs.shots.forEach(function(sh) {
-        html += '<div class="shot-card"><div class="shot-top"><span class="shot-num">Shot ' + sh.shotNumber + '</span><span class="shot-dur">' + esc(sh.duration) + '</span></div><div class="shot-visual">Visual: ' + esc(sh.visual) + '</div><div class="shot-text">Text: "' + esc(sh.textOverlay) + '"</div><div class="shot-trans">Transition: ' + esc(sh.transition) + '</div></div>';
+        html += '<div class="shot-card"><div class="shot-top"><span class="shot-num">Shot ' + sh.shotNumber + '</span><span class="shot-dur">' + esc(sh.duration) + '</span></div><div class="shot-visual">🎬 ' + esc(sh.visual) + '</div><div class="shot-text">📝 "' + esc(sh.textOverlay) + '"</div><div class="shot-trans">↗ ' + esc(sh.transition) + '</div>';
+        // New: B-Roll Suggestion
+        if (sh.bRollSuggestion) {
+          html += '<div class="broll-suggestion">🎞️ Alt: ' + esc(sh.bRollSuggestion) + '</div>';
+        }
+        html += '</div>';
       });
       html += '</div>';
     }
@@ -464,14 +612,14 @@ function renderResults(d) {
       html += '<div class="caption-box" style="margin-top:12px"><div class="strat-label">Reel Caption</div><div class="caption-text">' + esc(rs.captionForReel) + '</div></div>';
     }
     if (rs.postingTip) {
-      html += '<div class="reel-tip"><strong>Tip:</strong> ' + esc(rs.postingTip) + '</div>';
+      html += '<div class="reel-tip"><strong>💡 Tip:</strong> ' + esc(rs.postingTip) + '</div>';
     }
     html += '</div>';
   }
 
   // Hooks
   if (d.hooks && d.hooks.length) {
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Scroll-Stopping Hooks</h2></div><div class="hooks-list">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Scroll-Stopping Hooks (' + d.hooks.length + ')</h2></div><div class="hooks-list">';
     d.hooks.forEach(function(h, i) {
       html += '<div class="hook-item"><span class="hook-num">' + (i + 1) + '</span><span class="hook-text">' + esc(h) + '</span><button class="copy-sm" onclick="copyText(this,\'' + escAttr(h) + '\')">Copy</button></div>';
     });
@@ -485,14 +633,14 @@ function renderResults(d) {
 
   // Hashtags
   if (d.hashtags && d.hashtags.length) {
-    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Hashtags</h2><button class="copy-sm" id="copyHashtagsBtn" onclick="copyHashtags()">Copy All</button></div><div class="tag-cloud">';
+    html += '<div class="result-block"><div class="block-header"><h2 class="block-title">Hashtags (' + d.hashtags.length + ')</h2><button class="copy-sm" id="copyHashtagsBtn" onclick="copyHashtags()">Copy All</button></div><div class="tag-cloud">';
     d.hashtags.forEach(function(tag) { html += '<span class="tag">' + esc(tag) + '</span>'; });
     html += '</div></div>';
   }
 
-  // Insight
+  // Insight — Enhanced multiline display
   if (d.agentInsight) {
-    html += '<div class="result-block"><div class="insight"><div class="insight-label">Agent Insight</div><div class="insight-text">' + esc(d.agentInsight) + '</div></div></div>';
+    html += '<div class="result-block"><div class="insight"><div class="insight-label">🤖 AI Strategy Brief</div><div class="insight-text" style="white-space:pre-line">' + esc(d.agentInsight) + '</div></div></div>';
   }
 
   resultsDiv.innerHTML = html;
