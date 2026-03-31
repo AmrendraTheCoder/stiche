@@ -11,7 +11,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "../../public")));
+// Static files are served by Vercel directly from /public — no express.static needed
 
 // ── Rate Limiting ───────────────────────────────────────────────────
 const agentLimiter = rateLimit({
@@ -241,15 +241,18 @@ app.delete("/api/orders/:id", async (req: Request, res: Response) => {
 
 // ── GET /api/health ─────────────────────────────────────────────────
 app.get("/api/health", (_req: Request, res: Response) => {
+  const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: "3.1.0",
-    endpoints: ["/api/run-agent", "/api/run-calendar", "/api/generate-message", "/api/orders"],
+    version: "4.0.0",
+    environment: process.env.VERCEL ? "vercel" : "local",
     keys: {
-      anthropic: !!process.env.ANTHROPIC_API_KEY,
-      openrouter: !!process.env.OPENROUTER_API_KEY,
+      anthropic: hasAnthropic ? "set" : "MISSING - set ANTHROPIC_API_KEY in Vercel dashboard",
+      openrouter: hasOpenRouter ? "set" : "not set (optional)",
     },
+    endpoints: ["/api/run-agent", "/api/run-calendar", "/api/generate-message", "/api/orders"],
   });
 });
 
