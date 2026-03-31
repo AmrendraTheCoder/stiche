@@ -41,6 +41,10 @@ function getText(content: any[]): string {
  * Call 2: Generate 7-day calendar JSON with 4-3 content mix
  */
 export async function runCalendarPipeline(input: CalendarInput): Promise<CalendarOutput> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY is not set. Add it in Vercel Dashboard > Settings > Environment Variables, then redeploy.");
+  }
+
   const { products, audience, region, city, brandVoice, priceRange, businessContext } = input;
   const locationStr = city ? `${city}, ${region}` : region;
   console.log(`\nCalendar pipeline: ${products} / ${locationStr}`);

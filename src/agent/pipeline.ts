@@ -86,6 +86,11 @@ async function cheapWrite(prompt: string, maxTokens: number = 1500): Promise<str
 export async function runAgentPipeline(
   input: AgentInput,
 ): Promise<AgentOutput> {
+  // Pre-flight: verify API key exists before doing anything
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY is not set. Add it in Vercel Dashboard > Settings > Environment Variables, then redeploy.");
+  }
+
   const { topic, niche, region, city, hookStyle, goal, imageBase64, imageMimeType, instagramHandle } = input;
   const locationStr = city ? `${city}, ${region}` : region;
   console.log(`\nPipeline v2: "${topic}" / "${niche}" / ${locationStr}` + (instagramHandle ? ` / IG: @${instagramHandle}` : ""));
