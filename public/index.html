@@ -19,7 +19,6 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
-        <a href="#pricing">Pricing</a>
         <a href="/dashboard" class="nav-cta">Open App</a>
       </div>
     </div>
@@ -31,8 +30,8 @@
     <h1 class="hero-title">Stop guessing<br><span class="grad">what to post.</span></h1>
     <p class="hero-sub">Stiché is an AI-powered business suite that researches trends, plans your content calendar, tracks orders, and generates ad copy — designed exclusively for India's crochet and handmade sellers.</p>
     <div class="hero-cta-row">
-      <a href="#waitlist" class="btn-hero-pri">Get Early Access — It's Free</a>
-      <a href="/dashboard" class="btn-hero-sec">Launch App</a>
+      <a href="/dashboard" class="btn-hero-pri">Launch App — Free</a>
+      <a href="#features" class="btn-hero-sec">See How It Works</a>
     </div>
     <div class="hero-trust">
       <span>India-first AI</span>
@@ -190,85 +189,6 @@
     </div>
   </section>
 
-  <!-- PRICING -->
-  <section class="pricing" id="pricing">
-    <div class="section-header">
-      <div class="section-tag">Transparent pricing</div>
-      <h2>Less than a single order.<br>Earns you many more.</h2>
-      <p>Early access pricing — locked in forever when you join now.</p>
-    </div>
-    <div class="pricing-grid">
-      <div class="price-card">
-        <div class="price-tier">Starter</div>
-        <div class="price-val">Free</div>
-        <div class="price-cadence">forever</div>
-        <ul class="price-features">
-          <li>5 Trend Agent runs / month</li>
-          <li>Order tracker (unlimited orders)</li>
-          <li>1 calendar generation / month</li>
-          <li>Basic profit calculator</li>
-          <li class="disabled">PDF export</li>
-          <li class="disabled">Ad copy generator</li>
-          <li class="disabled">Image analysis</li>
-        </ul>
-        <a href="#waitlist" class="price-btn price-btn-outline">Join Waitlist</a>
-      </div>
-
-      <div class="price-card price-popular">
-        <div class="popular-badge">Most Popular</div>
-        <div class="price-tier">Solo Seller</div>
-        <div class="price-val">₹299<span>/mo</span></div>
-        <div class="price-cadence">Early access — 40% off launch price</div>
-        <ul class="price-features">
-          <li>30 Trend Agent runs / month</li>
-          <li>Unlimited order tracking</li>
-          <li>Weekly calendar (unlimited)</li>
-          <li>Full profit & ROAS calculator</li>
-          <li>PDF report export</li>
-          <li>Ad copy + A/B variants</li>
-          <li>Image analysis & scoring</li>
-        </ul>
-        <a href="#waitlist" class="price-btn price-btn-primary">Get Early Access</a>
-      </div>
-
-      <div class="price-card">
-        <div class="price-tier">Pro</div>
-        <div class="price-val">₹699<span>/mo</span></div>
-        <div class="price-cadence">Early access — 30% off launch price</div>
-        <ul class="price-features">
-          <li>Unlimited Trend Agent runs</li>
-          <li>Priority AI queue (2x faster)</li>
-          <li>Everything in Solo Seller</li>
-          <li>Analytics dashboard</li>
-          <li>Multi-product catalog</li>
-          <li>Customer database</li>
-          <li>Bulk WhatsApp export</li>
-        </ul>
-        <a href="#waitlist" class="price-btn price-btn-outline">Join Waitlist</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- WAITLIST -->
-  <section class="waitlist" id="waitlist">
-    <div class="waitlist-inner">
-      <div class="waitlist-badge">Early Access</div>
-      <h2>Join 50+ sellers on the waitlist</h2>
-      <p>Be first when we launch. Get the Solo plan free for 3 months as a founding member.</p>
-      <form class="waitlist-form" id="waitlistForm">
-        <div class="wl-row">
-          <input type="text" id="wlName" placeholder="Your name" autocomplete="name" required />
-          <input type="email" id="wlEmail" placeholder="Your email" autocomplete="email" required />
-          <button type="submit" id="wlBtn">Reserve My Spot</button>
-        </div>
-        <div class="wl-note">No spam. Unsubscribe anytime. We'll email you when we launch.</div>
-      </form>
-      <div class="wl-success" id="wlSuccess">
-        You're on the list! We'll reach out before launch with your founding member invite.
-      </div>
-    </div>
-  </section>
-
   <!-- FOOTER -->
   <footer class="footer-land">
     <div class="footer-inner">
@@ -277,7 +197,7 @@
       <div class="footer-links">
         <a href="/dashboard">Open App</a>
         <a href="#features">Features</a>
-        <a href="#pricing">Pricing</a>
+        <a href="#how">How It Works</a>
       </div>
       <div class="footer-copy">© 2026 Stiché. All rights reserved.</div>
     </div>
@@ -296,33 +216,6 @@
     var nav = document.querySelector('.nav');
     window.addEventListener('scroll', function() {
       nav.classList.toggle('scrolled', window.scrollY > 20);
-    });
-
-    // Waitlist form
-    document.getElementById('waitlistForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-      var btn = document.getElementById('wlBtn');
-      var name = document.getElementById('wlName').value.trim();
-      var email = document.getElementById('wlEmail').value.trim();
-      if (!name || !email) return;
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-
-      fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, email: email })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function() {
-        document.getElementById('waitlistForm').style.display = 'none';
-        document.getElementById('wlSuccess').style.display = 'block';
-      })
-      .catch(function() {
-        // If API fails, still show success (don't block UX)
-        document.getElementById('waitlistForm').style.display = 'none';
-        document.getElementById('wlSuccess').style.display = 'block';
-      });
     });
   </script>
 </body>

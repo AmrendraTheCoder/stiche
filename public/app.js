@@ -1,61 +1,6 @@
-// ─── AUTH HELPER ────────────────────────────────────────────────────
-// Reads site key from localStorage. Uses a proper HTML modal instead of
-// browser prompt() which is blocked on iOS Safari and some Android browsers.
-function getSiteKey() {
-  return localStorage.getItem('stiche_site_key') || '';
-}
-function apiHeaders(extra) {
-  var h = { 'x-site-key': getSiteKey() };
-  return Object.assign(h, extra || {});
-}
-
-// ── ADMIN BYPASS VIA URL PARAM ─────────────────────────────────────
-// URL ?key= param: saved for future when SITE_KEY auth is re-enabled (Phase 2)
-(function checkKeyParam() {
-  var params = new URLSearchParams(window.location.search);
-  var keyParam = params.get('key');
-  if (keyParam && keyParam.trim()) {
-    localStorage.setItem('stiche_site_key', keyParam.trim());
-    params.delete('key');
-    var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-    window.history.replaceState({}, '', newUrl);
-  }
-})();
-
-function showSiteKeyModal() {
-  var modal = document.getElementById('siteKeyModal');
-  if (modal) modal.style.display = 'flex';
-}
-
-function submitSiteKey() {
-  var input = document.getElementById('siteKeyInput');
-  var key = (input ? input.value : '').trim();
-  if (!key) return;
-  var btn = document.getElementById('siteKeySubmit');
-  btn.disabled = true; btn.textContent = 'Checking...';
-
-  // Test the key against a protected endpoint
-  fetch('/api/orders', { headers: { 'x-site-key': key } })
-    .then(function(r) {
-      if (r.status === 401) {
-        btn.disabled = false; btn.textContent = 'Unlock Dashboard';
-        var err = document.getElementById('siteKeyError');
-        if (err) err.style.display = 'block';
-      } else {
-        localStorage.setItem('stiche_site_key', key);
-        var modal = document.getElementById('siteKeyModal');
-        if (modal) modal.style.display = 'none';
-        // Reload orders after auth
-        if (typeof loadOrders === 'function') loadOrders();
-      }
-    })
-    .catch(function() {
-      // On network error, save the key anyway and try
-      localStorage.setItem('stiche_site_key', key);
-      var modal = document.getElementById('siteKeyModal');
-      if (modal) modal.style.display = 'none';
-    });
-}
+// ─── API HEADERS ─────────────────────────────────────────────────────
+// Auth is handled server-side via CORS. No site key needed.
+function apiHeaders(extra) { return extra || {}; }
 
 // ─── TAB SWITCHING ──────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
@@ -611,133 +556,405 @@ function toggleROASFormulas() {
   var el = document.getElementById("roasFormulasContent");
   if (el) el.classList.toggle("active");
 }
+
 // ─── PDF EXPORT ─────────────────────────────────────────────────────
+// Generates a professional, complete Business Intelligence report.
+// Uses Blob URL to avoid popup blockers. All field names match pipeline output.
 function exportPDF() {
-  if (!resultData) return;
+  if (!resultData) { alert("Run the agent first to generate a report."); return; }
   var d = resultData;
-  var topic  = document.getElementById("topic").value || "Crochet Report";
-  var region = document.getElementById("region").value || "India";
-  var city   = document.getElementById("city").value || "";
+  var topic  = (document.getElementById("topic")  || {}).value || "Crochet Report";
+  var region = (document.getElementById("region") || {}).value || "India";
+  var city   = (document.getElementById("city")   || {}).value || "";
+  var shopName = localStorage.getItem("stiche_shop_name") || "Stiché";
   var dateStr  = new Date().toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" });
   var location = city ? city + ", " + region : region;
-  var html = "";
 
-  // Cover page
-  html += '<div class="cover"><div class="cover-logo">Stiche</div><div class="cover-title">' + esc(topic) + '</div><div class="cover-sub">Business Intelligence Report</div><div class="cover-meta">' + esc(location) + ' &nbsp;|&nbsp; ' + dateStr + '</div></div>';
+  // ── Helpers ────────────────────────────────────────────────────
+  function e(s) { // escape HTML
+    var d2 = document.createElement("div"); d2.textContent = s || ""; return d2.innerHTML;
+  }
+  function moneyRange(obj) {
+    if (!obj) return "—";
+    return "\u20B9" + (obj.min || 0) + " \u2013 \u20B9" + (obj.max || 0);
+  }
+  function fmt(n) {
+    if (!n && n !== 0) return "0";
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+  function badge(txt, cls) {
+    return '<span class="badge ' + cls + '">' + e(txt) + '</span>';
+  }
+  function momentumBadge(m) {
+    var cls = m === "hot" ? "b-hot" : m === "rising" ? "b-rising" : "b-steady";
+    return badge(m, cls);
+  }
+  function intentBadge(i) {
+    var cls = i === "high" ? "b-high" : i === "low" ? "b-low" : "b-medium";
+    return badge(i + " intent", cls);
+  }
+  function table(headers, rows) {
+    var h = headers.map(function(h2) { return '<th>' + e(h2) + '</th>'; }).join('');
+    return '<table><tr>' + h + '</tr>' + rows + '</table>';
+  }
+  function sec(icon, title, body) {
+    return '<div class="sec"><div class="sec-hd"><span class="sec-ico">' + icon + '</span><div class="sec-ttl">' + e(title) + '</div></div><div class="sec-bd">' + body + '</div></div>';
+  }
+  function kv(label, val) {
+    return val ? '<tr><td class="kl">' + e(label) + '</td><td class="kv"><strong>' + (typeof val === "string" ? e(val) : val) + '</strong></td></tr>' : '';
+  }
 
-  // Trends
+  var secs = [];
+
+  // ── 01  Trends ──────────────────────────────────────────────────
   if (d.trends && d.trends.length) {
-    html += '<div class="section"><div class="section-title">Live Market Trends</div><table><tr><th>Trend</th><th>Momentum</th><th>Region</th><th>Insight</th></tr>';
-    d.trends.forEach(function(t) { html += '<tr><td><strong>' + esc(t.trend) + '</strong></td><td><span class="badge badge-' + esc(t.momentum) + '">' + esc(t.momentum) + '</span></td><td>' + esc(t.region) + '</td><td>' + esc(t.why) + '</td></tr>'; });
-    html += '</table></div>';
+    var rows = d.trends.map(function(t) {
+      return '<tr><td><strong>' + e(t.trend) + '</strong></td><td>' + momentumBadge(t.momentum) + '</td><td>' + e(t.region) + '</td><td class="sm">' + e(t.why) + '</td></tr>';
+    }).join('');
+    secs.push(sec("📈", "Live Market Trends", table(["Trend","Momentum","Region","Insight"], rows)));
   }
-  // Personas
+
+  // ── 02  Traffic ─────────────────────────────────────────────────
+  if (d.traffic && d.traffic.length) {
+    var rows = d.traffic.map(function(t) {
+      var sc = t.score || 0;
+      var bar = '<div class="bar-wrap"><div class="bar" style="width:' + sc + '%"></div></div>';
+      var dir = t.trend === "up" ? "↑ Growing" : t.trend === "down" ? "↓ Declining" : "→ Stable";
+      return '<tr><td>' + e(t.region) + '</td><td>' + bar + sc + '/100</td><td class="sm">' + e(dir) + '</td><td class="sm">' + e(t.insight) + '</td></tr>';
+    }).join('');
+    secs.push(sec("🌐", "Audience Traffic by Region", table(["Region","Score","Direction","Insight"], rows)));
+  }
+
+  // ── 03  City Market ─────────────────────────────────────────────
+  if (d.cityMarket) {
+    var cm = d.cityMarket;
+    var rows = [
+      kv("Population", cm.population),
+      kv("Avg Household Income", cm.avgIncome),
+      kv("Craft Market Size", cm.craftMarketSize),
+      kv("Online Penetration", cm.onlinePenetration),
+      kv("Competitor Density", cm.competitorDensity)
+    ].join('');
+    if (cm.topPlatforms && cm.topPlatforms.length) {
+      rows += '<tr><td class="kl">Top Platforms</td><td class="kv">' + cm.topPlatforms.map(function(p) { return '<span class="tag">' + e(p) + '</span>'; }).join(' ') + '</td></tr>';
+    }
+    if (cm.festivalCalendar && cm.festivalCalendar.length) {
+      rows += '<tr><td class="kl">Key Festivals</td><td class="kv">' + cm.festivalCalendar.map(function(f) { return '<span class="tag">' + e(f) + '</span>'; }).join(' ') + '</td></tr>';
+    }
+    secs.push(sec("🏙️", "City Market Intelligence — " + location, '<table>' + rows + '</table>'));
+  }
+
+  // ── 04  Customer Personas ────────────────────────────────────────
   if (d.customers && d.customers.length) {
-    html += '<div class="section"><div class="section-title">Customer Personas</div>';
-    d.customers.forEach(function(c) {
-      html += '<div class="persona-block"><div class="persona-name">' + esc(c.name) + ' &mdash; <span class="muted">' + esc(c.ageRange) + '</span>';
-      if (c.buyIntent) html += ' <span class="badge badge-' + esc(c.buyIntent) + '">' + esc(c.buyIntent) + '</span>';
-      html += '</div>';
-      if (c.location) html += '<div class="muted small">' + esc(c.location) + '</div>';
-      if (c.behavior) html += '<div class="sub-text">' + esc(c.behavior) + '</div>';
-      html += '</div>';
-    });
-    html += '</div>';
+    var cards = d.customers.map(function(c) {
+      return '<div class="persona-blk">' +
+        '<div class="p-top"><strong>' + e(c.name) + '</strong>&nbsp;' + intentBadge(c.buyingIntent || "medium") + '</div>' +
+        '<div class="p-meta">' + e(c.age) + ' &nbsp;·&nbsp; 📍 ' + e(c.location) + '</div>' +
+        '<div class="p-behavior">' + e(c.behavior) + '</div>' +
+        '</div>';
+    }).join('');
+    secs.push(sec("👥", "Customer Personas", cards));
   }
-  // Hooks
-  if (d.hooks && d.hooks.length) {
-    html += '<div class="section"><div class="section-title">Content Hooks</div><ol>';
-    d.hooks.forEach(function(h) { html += '<li>' + esc(h) + '</li>'; });
-    html += '</ol></div>';
+
+  // ── 05  Purchase Demand ──────────────────────────────────────────
+  if (d.purchases && d.purchases.length) {
+    var rows = d.purchases.map(function(p) {
+      var sc = p.score || 0;
+      var trendCls = p.trend === "up" ? "b-high" : p.trend === "down" ? "b-low" : "b-medium";
+      var bar = '<div class="bar-wrap"><div class="bar" style="width:' + sc + '%"></div></div>';
+      return '<tr><td>' + e(p.category) + '</td><td>' + bar + sc + '/100</td><td>' + badge(p.trend || "stable", trendCls) + '</td><td class="sm">' + e(p.insight) + '</td></tr>';
+    }).join('');
+    secs.push(sec("🛒", "Purchase Demand by Category", table(["Category","Score","Trend","Insight"], rows)));
   }
-  // Caption
-  if (d.caption) html += '<div class="section"><div class="section-title">Ready-to-Post Caption</div><div class="caption-box">' + esc(d.caption).replace(/\n/g, '<br>') + '</div></div>';
-  // Hashtags
-  if (d.hashtags && d.hashtags.length) {
-    html += '<div class="section"><div class="section-title">Hashtag Strategy (' + d.hashtags.length + ' tags)</div><div class="tag-cloud">';
-    d.hashtags.forEach(function(t) { html += '<span class="htag">' + esc(t) + '</span>'; });
-    html += '</div></div>';
+
+  // ── 06  Content Strategy ─────────────────────────────────────────
+  if (d.strategy) {
+    var s = d.strategy;
+    var rows = [
+      kv("Best Posting Time", s.bestTime),
+      kv("Best Day", s.bestDay),
+      kv("Recommended Format", s.format),
+      kv("Content Angle", s.contentAngle),
+      kv("CTA Suggestion", s.ctaSuggestion),
+      kv("Competitor Gap", s.competitorGap)
+    ].join('');
+    secs.push(sec("🎯", "Content Strategy Blueprint", '<table>' + rows + '</table>'));
   }
-  // Profit
+
+  // ── 07  Profit Calculator ────────────────────────────────────────
   if (d.profit) {
     var p = d.profit;
-    html += '<div class="section"><div class="section-title">Profit Analysis</div><table>';
-    if (p.sellingPrice) html += '<tr><td>Selling Price</td><td><strong>' + esc(String(p.sellingPrice)) + '</strong></td></tr>';
-    if (p.materialCost) html += '<tr><td>Material Cost</td><td>' + esc(String(p.materialCost)) + '</td></tr>';
-    if (p.netProfit)    html += '<tr><td><strong>Net Profit</strong></td><td><strong class="green">' + esc(String(p.netProfit)) + '</strong></td></tr>';
-    if (p.marginPct)    html += '<tr><td>Margin</td><td>' + esc(String(p.marginPct)) + '</td></tr>';
-    if (p.breakEvenQty) html += '<tr><td>Break-Even Qty</td><td>' + esc(String(p.breakEvenQty)) + ' units</td></tr>';
-    html += '</table></div>';
+    var lhours = p.laborHours ? p.laborHours.min + "–" + p.laborHours.max + "h @ ₹" + p.laborCostPerHour + "/hr" : "";
+    var mlyPotential = p.monthlyPotential ? "₹" + fmt(p.monthlyPotential.profit) + " profit on " + p.monthlyPotential.units + " units (₹" + fmt(p.monthlyPotential.revenue) + " revenue)" : "";
+    var rows = [
+      kv("Selling Price Range", moneyRange(p.estimatedSellingPrice)),
+      kv("Material Cost Range", moneyRange(p.materialCost)),
+      kv("Labor", lhours),
+      kv("Shipping Estimate", p.shippingEstimate ? "₹" + p.shippingEstimate : ""),
+      kv("Profit Margin", p.profitMargin ? p.profitMargin.min + "–" + p.profitMargin.max + "%" : ""),
+      kv("Monthly Potential", mlyPotential)
+    ].join('');
+    var pfees = "";
+    if (p.platformFees && p.platformFees.length) {
+      pfees = '<div class="sub-hd">Platform Fees</div>' +
+        table(["Platform","Commission %"],
+          p.platformFees.map(function(f) {
+            return '<tr><td>' + e(f.platform) + '</td><td>' + f.percentage + '%</td></tr>';
+          }).join(''));
+    }
+    secs.push(sec("💰", "Profit Analysis", '<table>' + rows + '</table>' + pfees));
   }
-  // Ad Copy
+
+  // ── 08  Instagram Ad Copy ────────────────────────────────────────
   if (d.adCopy) {
     var a = d.adCopy;
-    html += '<div class="section"><div class="section-title">Instagram Ad Copy</div>';
-    if (a.headline) html += '<div class="big-text">' + esc(a.headline) + '</div>';
-    if (a.primaryText) html += '<div class="sub-text">' + esc(a.primaryText) + '</div>';
+    var content = '';
+    if (a.headline) content += '<div class="ad-hl">' + e(a.headline) + '</div>';
+    if (a.primaryText) content += '<div class="ad-body">' + e(a.primaryText) + '</div>';
+    if (a.description) content += '<div class="sm muted" style="margin-top:4px;">' + e(a.description) + '</div>';
+    var meta = [
+      kv("CTA Button", a.ctaButton),
+      kv("Target Audience", a.targetAudience),
+      kv("Ad Objective", a.adObjective)
+    ].join('');
+    if (meta) content += '<table style="margin-top:10px;">' + meta + '</table>';
     if (a.variants && a.variants.length) {
-      a.variants.forEach(function(v, i) { html += '<div class="variant"><strong>Variant ' + (i+1) + ':</strong> ' + esc(v.headline) + '<div class="sub-text">' + esc(v.text) + '</div></div>'; });
+      content += '<div class="sub-hd">A/B Test Variants</div>';
+      a.variants.forEach(function(v, i) {
+        content += '<div class="variant"><strong>Variant ' + String.fromCharCode(65 + i) + ':</strong> ' + e(v.headline) + '<div class="muted sm">' + e(v.primaryText || "") + '</div></div>';
+      });
     }
-    html += '</div>';
+    secs.push(sec("📣", "Instagram Ad Copy", content));
   }
-  // ROAS
+
+  // ── 09  ROAS Calculator ──────────────────────────────────────────
   if (d.roas) {
     var r = d.roas;
-    html += '<div class="section"><div class="section-title">ROAS Calculator</div><table>';
-    if (r.adSpend)       html += '<tr><td>Recommended Ad Spend</td><td>' + esc(String(r.adSpend)) + '</td></tr>';
-    if (r.expectedROAS)  html += '<tr><td>Expected ROAS</td><td><strong>' + esc(String(r.expectedROAS)) + '</strong></td></tr>';
-    if (r.revenueTarget) html += '<tr><td>Revenue Target</td><td>' + esc(String(r.revenueTarget)) + '</td></tr>';
-    if (r.cpc)           html += '<tr><td>Est. CPC</td><td>' + esc(String(r.cpc)) + '</td></tr>';
-    html += '</table></div>';
+    var rows = [
+      kv("Daily Budget", r.dailyBudget ? "₹" + r.dailyBudget : ""),
+      kv("Monthly Ad Spend", r.monthlyAdSpend ? "₹" + fmt(r.monthlyAdSpend) : ""),
+      kv("Estimated Daily Reach", r.estimatedReach ? fmt(r.estimatedReach.min) + " – " + fmt(r.estimatedReach.max) : ""),
+      kv("Estimated Daily Clicks", r.estimatedClicks ? r.estimatedClicks.min + " – " + r.estimatedClicks.max : ""),
+      kv("Cost Per Click", r.costPerClick ? "₹" + r.costPerClick.min + " – ₹" + r.costPerClick.max : ""),
+      kv("Cost Per Conversion", r.costPerConversion ? "₹" + r.costPerConversion : ""),
+      kv("Projected ROAS", r.projectedROAS ? r.projectedROAS + "x" : ""),
+      kv("Monthly Ad Revenue", r.monthlyAdRevenue ? "₹" + fmt(r.monthlyAdRevenue) : "")
+    ].join('');
+    secs.push(sec("📊", "Ad Budget & ROAS Calculator", '<table>' + rows + '</table>'));
   }
-  // Instagram Profile
+
+  // ── 10  Reel Script ──────────────────────────────────────────────
+  if (d.reelScript) {
+    var rs = d.reelScript;
+    var content = '<div class="reel-meta">⏱ ' + e(rs.duration) + ' &nbsp;·&nbsp; 🎬 ' + (rs.totalShots || 0) + ' shots &nbsp;·&nbsp; 🎵 ' + e(rs.trendingAudio) + '</div>';
+    if (rs.shots && rs.shots.length) {
+      var rows = rs.shots.map(function(sh) {
+        return '<tr><td>' + sh.shotNumber + '</td><td class="sm">' + e(sh.duration) + '</td><td>' + e(sh.visual) + '</td><td><em>"' + e(sh.textOverlay) + '"</em></td><td class="sm">' + e(sh.transition) + '</td></tr>';
+      }).join('');
+      content += table(["#","Dur","Visual","Text Overlay","Transition"], rows);
+    }
+    if (rs.captionForReel) content += '<div class="caption-box" style="margin-top:10px;">' + e(rs.captionForReel).replace(/\n/g,"<br>") + '</div>';
+    if (rs.postingTip) content += '<div class="tip">💡 ' + e(rs.postingTip) + '</div>';
+    secs.push(sec("🎬", "Reel Script", content));
+  }
+
+  // ── 11  Scroll-Stopping Hooks ────────────────────────────────────
+  if (d.hooks && d.hooks.length) {
+    var list = '<ol>' + d.hooks.map(function(h) { return '<li>' + e(h) + '</li>'; }).join('') + '</ol>';
+    secs.push(sec("🪝", "Scroll-Stopping Hooks", list));
+  }
+
+  // ── 12  Caption ──────────────────────────────────────────────────
+  if (d.caption) {
+    secs.push(sec("✍️", "Ready-to-Post Caption", '<div class="caption-box">' + e(d.caption).replace(/\n/g,"<br>") + '</div>'));
+  }
+
+  // ── 13  Pinterest Ideas ──────────────────────────────────────────
+  if (d.pinterestSuggestions && d.pinterestSuggestions.length) {
+    var cards = d.pinterestSuggestions.map(function(p) {
+      var terms = (p.searchTerms || []).map(function(t) { return '<span class="tag">' + e(t) + '</span>'; }).join('');
+      var engCls = p.estimatedEngagement === "high" ? "b-high" : p.estimatedEngagement === "low" ? "b-low" : "b-medium";
+      return '<div class="persona-blk"><strong>' + e(p.idea) + '</strong> ' + badge(p.estimatedEngagement || "medium", engCls) + '<div class="muted sm">' + e(p.whyItWorks) + '</div><div style="margin-top:5px;">' + terms + '</div></div>';
+    }).join('');
+    secs.push(sec("📌", "Pinterest Content Ideas", cards));
+  }
+
+  // ── 14  Hashtags ─────────────────────────────────────────────────
+  if (d.hashtags && d.hashtags.length) {
+    var cloud = '<div class="tag-cloud">' + d.hashtags.map(function(t) { return '<span class="htag">' + e(t) + '</span>'; }).join('') + '</div>';
+    secs.push(sec("#", "Hashtag Strategy (" + d.hashtags.length + " tags)", cloud));
+  }
+
+  // ── 15  Image Analysis ───────────────────────────────────────────
+  if (d.imageAnalysis) {
+    var ia = d.imageAnalysis;
+    var score = ia.instagramReadiness || 0;
+    var label = score >= 90 ? "Post-Ready ✓" : score >= 70 ? "Good — minor tweaks" : score >= 50 ? "Needs Improvement" : "Re-shoot Recommended";
+    var scoreColor = score >= 70 ? "#1a9e6e" : score >= 50 ? "#c47f17" : "#e5484d";
+    var content = '<div class="score-row"><div class="big-score" style="color:' + scoreColor + '">' + score + '</div><div><div class="score-lbl">Instagram Readiness Score</div><div class="muted">' + label + '</div></div></div>';
+    var rows = [
+      kv("Lighting", ia.lightingScore != null ? ia.lightingScore + "/100" : ""),
+      kv("Composition", ia.compositionScore != null ? ia.compositionScore + "/100" : ""),
+      kv("Color Harmony", ia.colorHarmonyScore != null ? ia.colorHarmonyScore + "/100" : ""),
+      kv("Product Clarity", ia.productClarityScore != null ? ia.productClarityScore + "/100" : "")
+    ].join('');
+    if (rows) content += '<table style="margin-top:10px;">' + rows + '</table>';
+    if (ia.improvements && ia.improvements.length) {
+      content += '<div class="sub-hd">Suggested Improvements</div><ul>' + ia.improvements.map(function(tip) { return '<li>' + e(tip) + '</li>'; }).join('') + '</ul>';
+    }
+    secs.push(sec("📸", "Image Analysis", content));
+  }
+
+  // ── 16  Instagram Profile ────────────────────────────────────────
   if (d.instagramProfile) {
     var ig = d.instagramProfile;
-    html += '<div class="section"><div class="section-title">Instagram Profile — ' + esc(ig.handle) + '</div><table>';
-    if (ig.followerCountStr)      html += '<tr><td>Followers</td><td>' + esc(ig.followerCountStr) + '</td></tr>';
-    if (ig.engagementRateStr)     html += '<tr><td>Engagement Rate</td><td>' + esc(ig.engagementRateStr) + '</td></tr>';
-    if (ig.growthTrend)           html += '<tr><td>Growth Trend</td><td>' + esc(ig.growthTrend) + '</td></tr>';
-    if (ig.recentActivitySummary) html += '<tr><td>Recent Activity</td><td>' + esc(ig.recentActivitySummary) + '</td></tr>';
-    if (ig.bestPerformingStyles)  html += '<tr><td>Best Styles</td><td>' + esc(ig.bestPerformingStyles) + '</td></tr>';
-    html += '</table></div>';
+    var rows = [
+      kv("Handle", "@" + (ig.handle || "").replace("@","")),
+      kv("Followers (approx)", ig.followerCountStr),
+      kv("Engagement Rate", ig.engagementRateStr),
+      kv("Growth Trend", ig.growthTrend),
+      kv("Recent Activity", ig.recentActivitySummary),
+      kv("Best Performing Styles", ig.bestPerformingStyles)
+    ].join('');
+    secs.push(sec("📱", "Your Instagram Profile", '<table>' + rows + '</table>'));
   }
-  // Insight
-  if (d.agentInsight) html += '<div class="section"><div class="section-title">AI Agent Insight</div><div class="insight">' + esc(d.agentInsight) + '</div></div>';
 
-  // Open print window
-  var win = window.open("", "_blank");
-  if (!win) { alert("Please allow pop-ups to export the PDF."); return; }
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stiche Report</title>');
-  win.document.write('<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">');
-  win.document.write('<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:"Inter",sans-serif;color:#1a1a2e;font-size:10.5pt;line-height:1.5;padding:20px;background:#fff;}');
-  win.document.write('.cover{text-align:center;padding:48px 0 36px;border-bottom:3px solid #6c5ce7;margin-bottom:28px;page-break-after:always;}');
-  win.document.write('.cover-logo{font-size:32pt;font-weight:900;color:#6c5ce7;letter-spacing:-1px;margin-bottom:10px;}');
-  win.document.write('.cover-title{font-size:20pt;font-weight:800;margin-bottom:4px;}.cover-sub{font-size:13pt;color:#5a5a7a;margin-bottom:12px;}');
-  win.document.write('.cover-meta{display:inline-block;padding:8px 18px;border:1px solid #e2e2ea;border-radius:8px;font-size:10.5pt;color:#9090aa;}');
-  win.document.write('.section{margin-bottom:20px;padding:16px 18px;border:1px solid #e2e2ea;border-radius:10px;page-break-inside:avoid;}');
-  win.document.write('.section-title{font-size:12.5pt;font-weight:800;color:#6c5ce7;padding-bottom:7px;border-bottom:2px solid rgba(108,92,231,0.18);margin-bottom:12px;}');
-  win.document.write('table{width:100%;border-collapse:collapse;font-size:10pt;}th{background:#f5f5ff;color:#666;font-size:8.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:left;padding:7px 10px;border-bottom:2px solid #e2e2ea;}');
-  win.document.write('td{padding:8px 10px;border-bottom:1px solid #f0f0f6;vertical-align:top;}tr:last-child td{border-bottom:none;}');
-  win.document.write('.badge{display:inline-block;padding:2px 8px;border-radius:100px;font-size:8pt;font-weight:700;text-transform:uppercase;}');
-  win.document.write('.badge-hot{background:#fde8e8;color:#e5484d;}.badge-rising{background:#fef3e2;color:#c47f17;}.badge-steady{background:#e8f5f0;color:#1a9e6e;}');
-  win.document.write('.badge-high{background:#e8f5f0;color:#1a9e6e;}.badge-medium{background:#fef3e2;color:#c47f17;}.badge-low{background:#fde8e8;color:#e5484d;}');
-  win.document.write('.persona-block{padding:9px 0;border-bottom:1px solid #f0f0f6;}.persona-block:last-child{border-bottom:none;}');
-  win.document.write('.persona-name{font-size:11pt;font-weight:700;margin-bottom:2px;}.muted{font-weight:400;color:#9090aa;}.small{font-size:9pt;}');
-  win.document.write('.sub-text{font-size:10pt;color:#5a5a7a;line-height:1.6;margin-top:3px;}');
-  win.document.write('.caption-box{background:#f5f5ff;border-left:3px solid #6c5ce7;padding:10px 14px;border-radius:4px;white-space:pre-wrap;line-height:1.7;font-size:10pt;}');
-  win.document.write('.tag-cloud{display:flex;flex-wrap:wrap;gap:4px;padding-top:4px;}.htag{background:#f0edff;color:#6c5ce7;padding:2px 9px;border-radius:100px;font-size:9pt;font-weight:500;}');
-  win.document.write('.big-text{font-size:13pt;font-weight:800;margin-bottom:6px;}.green{color:#1a9e6e;}');
-  win.document.write('.variant{padding:9px;background:#fafafe;border:1px solid #e2e2ea;border-radius:6px;margin-bottom:7px;}');
-  win.document.write('.insight{background:#f5f5ff;border:1px solid rgba(108,92,231,0.2);border-radius:8px;padding:12px;line-height:1.7;}');
-  win.document.write('ol{padding-left:20px;}ol li{padding:5px 0;border-bottom:1px solid #f5f5f7;font-size:10.5pt;}ol li:last-child{border-bottom:none;}');
-  win.document.write('@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;padding:0;}}</style>');
-  win.document.write('</head><body>' + html + '</body></html>');
-  win.document.close();
-  setTimeout(function() { win.focus(); win.print(); }, 600);
+  // ── 17  Agent Insight ────────────────────────────────────────────
+  if (d.agentInsight) {
+    secs.push(sec("🤖", "AI Agent Insight", '<div class="insight">' + e(d.agentInsight) + '</div>'));
+  }
+
+  // ── Build the full HTML document ────────────────────────────────
+  var css = [
+    '* { box-sizing:border-box; margin:0; padding:0; }',
+    'body { font-family:"Inter","Segoe UI",sans-serif; color:#1a1a2e; font-size:10.5pt; line-height:1.55; background:#fff; padding:20mm 18mm; }',
+    'h1,h2,h3 { margin:0; }',
+
+    /* Cover */
+    '.cover { text-align:center; padding:36px 0 28px; border-bottom:3px solid #6c5ce7; margin-bottom:30px; page-break-after:always; }',
+    '.cover-logo { font-size:30pt; font-weight:900; color:#6c5ce7; letter-spacing:-1.5px; margin-bottom:6px; }',
+    '.cover-sub { font-size:11pt; color:#8888aa; margin-bottom:14px; font-weight:500; letter-spacing:.4px; }',
+    '.cover-title { font-size:22pt; font-weight:800; color:#1a1a2e; margin-bottom:6px; }',
+    '.cover-meta { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }',
+    '.meta-pill { display:inline-block; border:1px solid #e2e2ea; border-radius:100px; padding:5px 14px; font-size:10pt; color:#8888aa; }',
+    '.cover-shop { font-size:12pt; font-weight:600; color:#6c5ce7; margin-bottom:4px; }',
+
+    /* Sections */
+    '.sec { margin-bottom:18px; border:1px solid #e8e8f0; border-radius:10px; page-break-inside:avoid; overflow:hidden; }',
+    '.sec-hd { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#f8f7ff; border-bottom:1px solid #e8e8f0; }',
+    '.sec-ico { font-size:14pt; }',
+    '.sec-ttl { font-size:11.5pt; font-weight:800; color:#4a3f78; }',
+    '.sec-bd { padding:12px 14px; }',
+    '.sub-hd { font-size:10pt; font-weight:700; color:#6c5ce7; margin-top:12px; margin-bottom:6px; border-top:1px dashed #e2e2ea; padding-top:10px; }',
+
+    /* Tables */
+    'table { width:100%; border-collapse:collapse; font-size:9.5pt; }',
+    'th { background:#f4f3ff; color:#6c5ce7; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:.5px; text-align:left; padding:7px 10px; border-bottom:2px solid #e2e2ea; }',
+    'td { padding:7px 10px; border-bottom:1px solid #f0f0f8; vertical-align:top; }',
+    'tr:last-child td { border-bottom:none; }',
+    'td.kl { width:36%; color:#5a5a7a; font-weight:500; }',
+    'td.kv { width:64%; }',
+    'td.sm { font-size:9pt; color:#5a5a7a; }',
+
+    /* Badges */
+    '.badge { display:inline-block; padding:2px 8px; border-radius:100px; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }',
+    '.b-hot { background:#fde8e8; color:#e5484d; }',
+    '.b-rising { background:#fff3e2; color:#c47f17; }',
+    '.b-steady { background:#e8f5f0; color:#1a9e6e; }',
+    '.b-high { background:#e8f5f0; color:#1a9e6e; }',
+    '.b-medium { background:#fff3e2; color:#c47f17; }',
+    '.b-low { background:#fde8e8; color:#e5484d; }',
+
+    /* Progress bars */
+    '.bar-wrap { display:inline-block; width:100px; height:8px; background:#f0f0f8; border-radius:100px; vertical-align:middle; margin-right:6px; overflow:hidden; }',
+    '.bar { height:100%; background:linear-gradient(90deg,#6c5ce7,#a29bfe); border-radius:100px; }',
+
+    /* Personas */
+    '.persona-blk { padding:10px 0; border-bottom:1px solid #f0f0f8; }',
+    '.persona-blk:last-child { border-bottom:none; }',
+    '.p-top { font-size:11pt; margin-bottom:2px; }',
+    '.p-meta { font-size:9pt; color:#8888aa; margin-bottom:3px; }',
+    '.p-behavior { font-size:9.5pt; color:#5a5a7a; line-height:1.6; }',
+
+    /* Caption */
+    '.caption-box { background:#f8f7ff; border-left:3px solid #6c5ce7; padding:10px 14px; border-radius:4px; white-space:pre-wrap; line-height:1.75; font-size:10pt; }',
+
+    /* Tags */
+    '.tag-cloud { display:flex; flex-wrap:wrap; gap:4px; }',
+    '.tag { display:inline-block; background:#f0edff; color:#6c5ce7; padding:2px 9px; border-radius:100px; font-size:8.5pt; font-weight:500; }',
+    '.htag { display:inline-block; background:#f0edff; color:#6c5ce7; padding:2px 9px; border-radius:100px; font-size:8.5pt; font-weight:500; margin:2px; }',
+
+    /* Ad copy */
+    '.ad-hl { font-size:13pt; font-weight:800; margin-bottom:6px; color:#1a1a2e; }',
+    '.ad-body { font-size:10pt; color:#3d3d5a; line-height:1.65; }',
+
+    /* Reel */
+    '.reel-meta { font-size:10pt; font-weight:600; color:#6c5ce7; margin-bottom:10px; }',
+
+    /* Variant */
+    '.variant { padding:9px; background:#fafafe; border:1px solid #e8e8f0; border-radius:6px; margin-bottom:7px; }',
+
+    /* Score */
+    '.score-row { display:flex; align-items:center; gap:16px; margin-bottom:12px; }',
+    '.big-score { font-size:32pt; font-weight:900; }',
+    '.score-lbl { font-size:11pt; font-weight:700; }',
+
+    /* Insight */
+    '.insight { background:#f8f7ff; border:1px solid rgba(108,92,231,.2); border-radius:8px; padding:12px; line-height:1.75; }',
+    '.tip { margin-top:10px; font-size:9.5pt; color:#5a5a7a; border-top:1px dashed #e2e2ea; padding-top:8px; }',
+
+    /* Lists */
+    'ol { padding-left:18px; } ol li { padding:5px 0; border-bottom:1px solid #f5f5f7; } ol li:last-child { border-bottom:none; }',
+    'ul { padding-left:18px; } ul li { padding:4px 0; }',
+
+    /* Print */
+    '.muted { color:#8888aa; } .sm { font-size:9pt; }',
+    '@media print { body { padding:0; } .no-print { display: none; } @page { margin:15mm 15mm; } }'
+  ].join('\n');
+
+  var printBtn = '<div class="no-print" style="position:fixed;top:18px;right:18px;display:flex;gap:8px;">' +
+    '<button onclick="window.print()" style="background:#6c5ce7;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:11pt;font-weight:700;cursor:pointer;">🖨️ Print / Save as PDF</button>' +
+    '<button onclick="window.close()" style="background:#f0f0f4;color:#3d3d5a;border:none;padding:10px 16px;border-radius:8px;font-size:11pt;cursor:pointer;">✕ Close</button>' +
+    '</div>';
+
+  var cover = '<div class="cover">' +
+    '<div class="cover-logo">Stiché</div>' +
+    '<div class="cover-sub">AI Business Intelligence Report</div>' +
+    '<h1 class="cover-title">' + e(topic) + '</h1>' +
+    '<div class="cover-meta">' +
+      '<div class="meta-pill">📍 ' + e(location) + '</div>' +
+      '<div class="meta-pill">📅 ' + dateStr + '</div>' +
+      (shopName !== "Stiché" ? '<div class="meta-pill">🏪 ' + e(shopName) + '</div>' : '') +
+      '<div class="meta-pill">' + secs.length + ' sections</div>' +
+    '</div>' +
+    '</div>';
+
+  var fullHtml = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Sticheé Report — ' + e(topic) + ' — ' + dateStr + '</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">' +
+    '<style>' + css + '</style></head><body>' +
+    printBtn + cover + secs.join('') +
+    '</body></html>';
+
+  // Use Blob URL — avoids popup blockers entirely
+  var blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var win = window.open(url, '_blank');
+  if (!win) {
+    // Fallback: create a download link
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'stiche-report-' + new Date().toISOString().slice(0,10) + '.html';
+    a.click();
+  }
+  setTimeout(function() { URL.revokeObjectURL(url); }, 30000);
 }
-
 
 // ─── UTILITIES ──────────────────────────────────────────────────────
 function esc(s) { var d = document.createElement("div"); d.textContent = s || ""; return d.innerHTML; }
 function escAttr(s) { return (s || "").replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, " "); }
 function formatNum(n) { if (!n) return "0"; return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+
+

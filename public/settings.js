@@ -52,15 +52,6 @@ function saveSettings() {
   toggleSettings();
 }
 
-// ── Reset site key ────────────────────────────────────────────────────────
-function resetSiteKey() {
-  localStorage.removeItem('stiche_site_key');
-  toggleSettings();
-  // Show the unlock modal so user can enter new key properly
-  if (typeof showSiteKeyModal === 'function') {
-    showSiteKeyModal();
-  }
-}
 
 // ── Festival Widget ───────────────────────────────────────────────────────
 function renderFestivalWidget() {
