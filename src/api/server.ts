@@ -11,6 +11,18 @@ import { getOrdersCollection } from "../lib/db";
 
 const app = express();
 
+// ── Static files (local dev only) ────────────────────────────────────────
+// On Vercel, static files are served directly from /public (outputDirectory).
+// Locally, Express must serve them since there's no Vercel CDN.
+if (!process.env.VERCEL) {
+  const publicDir = path.resolve(process.cwd(), "public");
+  app.use(express.static(publicDir));
+  // /dashboard → dashboard.html
+  app.get("/dashboard", (_req, res) => {
+    res.sendFile(path.join(publicDir, "dashboard.html"));
+  });
+}
+
 // ── CORS — only allow your own Vercel domain ─────────────────────────
 const ALLOWED_ORIGINS = [
   "https://sticheshop.vercel.app",

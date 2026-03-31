@@ -9,21 +9,32 @@ function apiHeaders(extra) {
   return Object.assign(h, extra || {});
 }
 
+// ── ADMIN BYPASS VIA URL PARAM ─────────────────────────────────────
+// Usage: https://sticheshop.vercel.app/dashboard?key=YOUR_SITE_KEY
+// The key is saved to localStorage silently and the URL param is removed.
+// Share this URL with team members — they only need to visit it once.
+(function checkKeyParam() {
+  var params = new URLSearchParams(window.location.search);
+  var keyParam = params.get('key');
+  if (keyParam && keyParam.trim()) {
+    localStorage.setItem('stiche_site_key', keyParam.trim());
+    // Clean the URL so the key isn't visible in browser history
+    params.delete('key');
+    var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.history.replaceState({}, '', newUrl);
+  }
+})();
+
 // Called on page load — probes the API to see if auth is required.
 // If server returns 401, shows the unlock modal. If 200/other, proceeds normally.
 (function checkAuth() {
-  fetch('/api/health')
-    .then(function(r) { return r.json(); })
-    .then(function() {
-      // Health is public, now probe the orders endpoint which requires auth
-      return fetch('/api/orders', { headers: apiHeaders() });
-    })
+  fetch('/api/orders', { headers: apiHeaders() })
     .then(function(r) {
       if (r.status === 401) {
         showSiteKeyModal();
       }
     })
-    .catch(function() { /* network error, proceed */ });
+    .catch(function() { /* network error, proceed silently */ });
 })();
 
 function showSiteKeyModal() {
