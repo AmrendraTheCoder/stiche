@@ -460,3 +460,42 @@ body { font-family: "Inter", -apple-system, sans-serif; background: var(--bg); c
 /* Tablet+ */
 @media (min-width: 600px) { .container { padding: 40px 24px 80px; } }
 @media (min-width: 768px) { .container { max-width: 720px; } }
+
+/* ─── SETTINGS BUTTON ──────────────────────────────────────────────────── */
+.settings-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; transition: all 0.2s; margin-left: 4px; }
+.settings-btn:hover { background: var(--accent-dim); border-color: rgba(108,92,231,0.3); color: var(--accent); }
+
+/* ─── SETTINGS DRAWER ──────────────────────────────────────────────────── */
+.settings-drawer { display: none; margin-bottom: 16px; }
+.settings-drawer.open { display: block; }
+.settings-inner { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px; }
+.settings-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.settings-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.settings-row:last-of-type { border-bottom: none; }
+.settings-row-label { font-size: 13px; font-weight: 600; color: var(--text-sub); }
+.settings-actions { display: flex; gap: 8px; }
+
+/* ─── FESTIVAL WIDGET ──────────────────────────────────────────────────── */
+.festival-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: var(--rs); background: var(--bg-input); margin-bottom: 6px; }
+.festival-item.urgent { background: rgba(196,127,23,0.08); border: 1px solid rgba(196,127,23,0.2); }
+.festival-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.festival-days { font-size: 11px; color: var(--text-muted); }
+.festival-item.urgent .festival-days { color: var(--rising); font-weight: 600; }
+
+/* ─── ANALYTICS TAB ────────────────────────────────────────────────────── */
+.analytics-grid { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+.anl-stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.anl-card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; box-shadow: var(--shadow-sm); }
+.anl-card.anl-stat { text-align: center; padding: 16px 8px; }
+.anl-val { font-size: 22px; font-weight: 800; color: var(--accent); }
+.anl-val.red { color: var(--hot); }
+.anl-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); margin-top: 4px; }
+.anl-card-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+.anl-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.anl-empty { text-align: center; padding: 40px 20px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--r); margin-top: 8px; }
+
+@media (max-width: 480px) {
+  .anl-stat-row { grid-template-columns: repeat(2, 1fr); }
+  .anl-charts-row { grid-template-columns: 1fr; }
+  .anl-val { font-size: 18px; }
+}

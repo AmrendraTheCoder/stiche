@@ -377,6 +377,36 @@ app.delete("/api/orders/:id", async (req: Request, res: Response) => {
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ── POST /api/waitlist ───────────────────────────────────────────────
+app.post("/api/waitlist", async (req: Request, res: Response) => {
+  const name  = sanitize(req.body.name, 80);
+  const email = sanitize(req.body.email, 120);
+  if (!email || !email.includes("@")) {
+    res.status(400).json({ error: "Valid email is required" }); return;
+  }
+  try {
+    if (process.env.MONGODB_URI) {
+      const col = (await import("../lib/db")).getOrdersCollection;
+      // Use same client for a waitlist collection
+      const { MongoClient } = await import("mongodb");
+      const client = new MongoClient(process.env.MONGODB_URI);
+      await client.connect();
+      const collection = client.db("stiche").collection("waitlist");
+      await collection.updateOne(
+        { email },
+        { $set: { name, email, joinedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
+      await client.close();
+    }
+    // Always return success (even if no DB — UX first)
+    res.json({ ok: true, message: "You're on the waitlist!" });
+  } catch (e: any) {
+    // DB error shouldn't block the user
+    console.error("Waitlist error:", e.message);
+    res.json({ ok: true, message: "You're on the waitlist!" });
+  }
+});
 
 // ── GET /api/health ─────────────────────────────────────────────────
 app.get("/api/health", (_req: Request, res: Response) => {
@@ -385,13 +415,13 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: "4.0.0",
+    version: "6.0.0",
     environment: process.env.VERCEL ? "vercel" : "local",
     keys: {
       anthropic: hasAnthropic ? "set" : "MISSING - set ANTHROPIC_API_KEY in Vercel dashboard",
       openrouter: hasOpenRouter ? "set" : "not set (optional)",
+      mongodb: !!process.env.MONGODB_URI ? "set" : "not set (orders use local file)",
     },
-    endpoints: ["/api/run-agent", "/api/run-calendar", "/api/generate-message", "/api/orders"],
   });
 });
 

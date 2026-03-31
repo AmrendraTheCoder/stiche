@@ -1,301 +1,329 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Stiche — Crochet Business Intelligence Suite</title>
-    <meta name="description" content="India's AI-powered crochet business suite — trend agent, weekly calendar, order tracker, ad copy, ROAS calculator." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="container">
-      <header class="header">
-        <div class="logo-wrapper">
-          <div class="logo-glow"></div>
-          <div class="logo">Stiché</div>
-        </div>
-        <p class="tagline">India's AI-Powered Crochet Business Suite</p>
-        <div class="badges">
-          <span class="badge glow-badge">Made in India</span>
-          <span class="badge tag-badge">Trends • Ads • Calendar • Orders</span>
-        </div>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stiché — India's AI Business Suite for Handmade Sellers</title>
+  <meta name="description" content="Stop guessing what to post. Let AI plan your trends, content calendar, orders and ads — built for India's crochet and handmade sellers." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="landing.css" />
+</head>
+<body>
 
-      <!-- TAB BAR -->
-      <nav class="tab-bar" id="tabBar">
-        <button class="tab-btn active" data-tab="trend">Trend Agent</button>
-        <button class="tab-btn" data-tab="calendar">Calendar</button>
-        <button class="tab-btn" data-tab="orders">Orders</button>
-      </nav>
-
-      <!-- ═══ TAB 1: TREND AGENT ═══ -->
-      <div class="tab-panel active" id="panel-trend">
-        <section>
-          <div class="card">
-            <div class="section-label">
-              <span>Configure Agent</span>
-              <label class="auto-tune-bar" title="Automatically fetches your top selling items from past orders to auto-tune the agent.">
-                <input type="checkbox" id="trendAutoPilot">
-                <span class="auto-tune-label">Auto-Tune with Sales</span>
-              </label>
-            </div>
-            <form id="agentForm" class="form-stack">
-              <div class="form-row">
-                <div class="field">
-                  <label class="field-label" for="topic">Topic / Product</label>
-                  <input class="field-input" id="topic" type="text" placeholder="e.g. crochet baby blanket" required />
-                </div>
-                <div class="field">
-                  <label class="field-label" for="niche">Niche</label>
-                  <select class="field-select" id="niche">
-                    <option value="crochet &amp; handmade">Crochet &amp; Handmade</option>
-                    <option value="crochet bags &amp; pouches">Bags &amp; Pouches</option>
-                    <option value="crochet baby &amp; kids wear">Baby &amp; Kids Wear</option>
-                    <option value="amigurumi &amp; crochet toys">Amigurumi &amp; Toys</option>
-                    <option value="crochet home decor">Home Decor</option>
-                    <option value="crochet flowers &amp; bouquets">Flowers &amp; Bouquets</option>
-                    <option value="crochet jewelry &amp; accessories">Jewelry &amp; Accessories</option>
-                    <option value="crochet clothing &amp; wearables">Clothing &amp; Wearables</option>
-                    <option value="crochet gifting &amp; hampers">Gifting &amp; Hampers</option>
-                    <option value="crochet patterns &amp; tutorials">Patterns &amp; Tutorials</option>
-                    <option value="macrame &amp; fiber art">Macrame &amp; Fiber Art</option>
-                    <option value="crochet pet accessories">Pet Accessories</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="field">
-                  <label class="field-label" for="region">Target State</label>
-                  <select class="field-select" id="region"></select>
-                </div>
-                <div class="field">
-                  <label class="field-label" for="city">City</label>
-                  <select class="field-select" id="city"><option value="">All Cities</option></select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="field">
-                  <label class="field-label" for="hookStyle">Hook Style</label>
-                  <select class="field-select" id="hookStyle">
-                    <option value="curiosity">Curiosity / Mystery</option>
-                    <option value="bold claim">Bold Claim</option>
-                    <option value="question">Question</option>
-                    <option value="story">Storytelling</option>
-                    <option value="shocking stat">Shocking Stat</option>
-                    <option value="relatable">Relatable</option>
-                    <option value="before-after">Before &amp; After</option>
-                    <option value="myth-buster">Myth Buster</option>
-                    <option value="unpopular opinion">Unpopular Opinion</option>
-                    <option value="customer love">Customer Love</option>
-                    <option value="behind the scenes">Behind the Scenes</option>
-                    <option value="list / tips">List / Tips</option>
-                    <option value="seasonal / festive">Seasonal / Festive</option>
-                    <option value="challenge">Challenge / Dare</option>
-                  </select>
-                </div>
-                <div class="field">
-                  <label class="field-label" for="goal">Post Goal</label>
-                  <select class="field-select" id="goal">
-                    <option value="grow followers organically">Grow Followers</option>
-                    <option value="drive DMs for custom orders">Drive DMs for Orders</option>
-                    <option value="get more saves and shares">More Saves &amp; Shares</option>
-                    <option value="announce a sale or offer">Announce Sale / Offer</option>
-                    <option value="launch a new product">Launch New Product</option>
-                    <option value="build brand awareness">Brand Awareness</option>
-                    <option value="drive traffic to shop link">Shop Link Traffic</option>
-                    <option value="increase engagement and comments">Engagement &amp; Comments</option>
-                    <option value="build community and trust">Community &amp; Trust</option>
-                    <option value="educate audience about crochet">Educate About Crochet</option>
-                  </select>
-                </div>
-              </div>
-              <div class="field">
-                <label class="field-label" for="instagramHandle">Instagram Handle (Optional — enables public profile analysis)</label>
-                <div style="position: relative;">
-                  <span style="position: absolute; left: 12px; top: 14px; color: var(--text-muted); font-weight: 500;">@</span>
-                  <input type="text" class="field-input" id="instagramHandle" placeholder="stiche.in" style="padding-left: 32px;" />
-                </div>
-              </div>
-              <div class="field">
-                <label class="field-label">Product Image (optional — enables AI analysis)</label>
-                <div class="upload-zone" id="uploadZone">
-                  <div class="upload-placeholder" id="uploadPlaceholder">
-                    <div class="upload-icon">+</div>
-                    <div class="upload-text">Drag &amp; drop your product image here</div>
-                    <div class="upload-sub">or click to browse · Max 5MB · JPEG, PNG, WebP</div>
-                  </div>
-                  <img class="upload-preview" id="uploadPreview" alt="Preview" />
-                  <button type="button" class="upload-remove" id="uploadRemove">&times;</button>
-                  <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
-                </div>
-              </div>
-              <div class="btn-row">
-                <button type="submit" class="btn-primary" id="submitBtn">Run Agent Pipeline</button>
-                <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </section>
-        <div class="error-box" id="errorBox"><div class="error-title">Pipeline Error</div><div class="error-msg" id="errorMessage"></div></div>
-        <div class="loading" id="loadingBox">
-          <div class="card loading-inner">
-            <div class="spinner"></div>
-            <div class="loading-title">Agent is working</div>
-            <div class="loading-sub" id="loadingSub">This takes 30-50 seconds</div>
-            <div class="steps-list" id="stepsList"></div>
-          </div>
-        </div>
-        <div class="results" id="results"></div>
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="nav-logo">Stiché</div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="/dashboard" class="nav-cta">Open App</a>
       </div>
+    </div>
+  </nav>
 
-      <!-- ═══ TAB 2: WEEKLY CALENDAR ═══ -->
-      <div class="tab-panel" id="panel-calendar">
-        <section>
-          <div class="card">
-            <div class="section-label">
-              <span>Weekly Content Calendar</span>
-              <label class="auto-tune-bar" title="Automatically build calendar around your top selling items from past orders.">
-                <input type="checkbox" id="calendarAutoPilot">
-                <span class="auto-tune-label">Auto-Pilot</span>
-              </label>
-            </div>
-            <p class="card-desc">Generate a complete 7-day Instagram posting plan. Run this every Sunday morning.</p>
-            <form id="calendarForm" class="form-stack">
-              <div class="field">
-                <label class="field-label" for="calProducts">Products You Sell</label>
-                <input class="field-input" id="calProducts" type="text" placeholder="e.g. baby blankets, amigurumi toys, beanies" required />
-              </div>
-              <div class="form-row">
-                <div class="field">
-                  <label class="field-label" for="calAudience">Target Audience</label>
-                  <input class="field-input" id="calAudience" type="text" placeholder="e.g. new moms, gift shoppers" />
-                </div>
-                <div class="field">
-                  <label class="field-label" for="calVoice">Brand Voice</label>
-                  <select class="field-select" id="calVoice">
-                    <option value="warm, personal, like a friend">Warm &amp; Friendly</option>
-                    <option value="professional, clean, minimal">Professional</option>
-                    <option value="fun, quirky, playful">Fun &amp; Quirky</option>
-                    <option value="luxury, premium, aspirational">Luxury / Premium</option>
-                    <option value="educational, helpful, expert">Educational / Expert</option>
-                    <option value="emotional, heartfelt, storytelling">Emotional / Storytelling</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="field">
-                  <label class="field-label" for="calRegion">State</label>
-                  <select class="field-select" id="calRegion"></select>
-                </div>
-                <div class="field">
-                  <label class="field-label" for="calCity">City</label>
-                  <select class="field-select" id="calCity"><option value="">All Cities</option></select>
-                </div>
-              </div>
-              <div class="field">
-                <label class="field-label" for="calPrice">Price Range</label>
-                <input class="field-input" id="calPrice" type="text" placeholder="e.g. ₹500-₹2500" />
-              </div>
-              <div class="btn-row">
-                <button type="submit" class="btn-primary" id="calSubmitBtn">Generate Weekly Calendar</button>
-              </div>
-            </form>
-          </div>
-        </section>
-        <div class="error-box" id="calErrorBox"><div class="error-title">Calendar Error</div><div class="error-msg" id="calErrorMessage"></div></div>
-        <div class="loading" id="calLoadingBox">
-          <div class="card loading-inner">
-            <div class="spinner"></div>
-            <div class="loading-title">Planning your week</div>
-            <div class="loading-sub">This takes 30-60 seconds</div>
-          </div>
-        </div>
-        <div class="results" id="calResults"></div>
-      </div>
-
-      <!-- ═══ TAB 3: ORDER TRACKER ═══ -->
-      <div class="tab-panel" id="panel-orders">
-        <div class="order-dashboard" id="orderDashboard">
-          <div class="dash-card"><div class="dash-val" id="dashActive">0</div><div class="dash-label">Active</div></div>
-          <div class="dash-card"><div class="dash-val" id="dashRevenue">₹0</div><div class="dash-label">This Month</div></div>
-          <div class="dash-card"><div class="dash-val" id="dashPending">₹0</div><div class="dash-label">Pending</div></div>
-          <div class="dash-card"><div class="dash-val" id="dashDueWeek">0</div><div class="dash-label">Due This Week</div></div>
-        </div>
-        <div class="order-actions">
-          <button class="btn-primary" id="addOrderBtn" onclick="openOrderModal()">+ Add Order</button>
-          <button class="btn-action secondary" id="exportCsvBtn" onclick="exportCSV()">Export CSV</button>
-          <input class="field-input order-search" id="orderSearch" type="text" placeholder="Search orders..." oninput="renderOrders()" />
-        </div>
-        <div class="order-filter-bar" id="orderFilterBar">
-          <button class="filter-chip active" data-filter="all" onclick="setFilter('all')">All</button>
-          <button class="filter-chip" data-filter="New" onclick="setFilter('New')">New</button>
-          <button class="filter-chip" data-filter="Making" onclick="setFilter('Making')">Making</button>
-          <button class="filter-chip" data-filter="Packed" onclick="setFilter('Packed')">Packed</button>
-          <button class="filter-chip" data-filter="Shipped" onclick="setFilter('Shipped')">Shipped</button>
-          <button class="filter-chip" data-filter="Delivered" onclick="setFilter('Delivered')">Delivered</button>
-        </div>
-        <div class="order-list" id="orderList"></div>
-      </div>
-
-      <!-- ORDER MODAL -->
-      <div class="modal-overlay" id="orderModal">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title" id="modalTitle">Add New Order</h3>
-            <button class="modal-close" onclick="closeOrderModal()">&times;</button>
-          </div>
-          <form id="orderForm" class="form-stack" onsubmit="saveOrder(event)">
-            <input type="hidden" id="orderId" />
-            <div class="form-row">
-              <div class="field"><label class="field-label" for="orderName">Customer Name</label><input class="field-input" id="orderName" required /></div>
-              <div class="field"><label class="field-label" for="orderContact">WhatsApp / Instagram</label><input class="field-input" id="orderContact" placeholder="@handle or phone" /></div>
-            </div>
-            <div class="form-row">
-              <div class="field"><label class="field-label" for="orderItem">Item Ordered</label><input class="field-input" id="orderItem" required /></div>
-              <div class="field"><label class="field-label" for="orderPrice">Price (₹)</label><input class="field-input" id="orderPrice" type="number" required /></div>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label class="field-label" for="orderPayment">Payment</label>
-                <select class="field-select" id="orderPayment"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select>
-              </div>
-              <div class="field"><label class="field-label" for="orderDelivery">Delivery Date</label><input class="field-input" id="orderDelivery" type="date" required /></div>
-            </div>
-            <div class="field"><label class="field-label" for="orderNotes">Notes</label><input class="field-input" id="orderNotes" placeholder="Color preference, gift wrapping, etc." /></div>
-            <div class="btn-row"><button type="submit" class="btn-primary">Save Order</button></div>
-          </form>
-        </div>
-      </div>
-
-      <!-- WHATSAPP MESSAGE MODAL -->
-      <div class="modal-overlay" id="whatsappModal">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title">WhatsApp Message</h3>
-            <button class="modal-close" onclick="closeWhatsappModal()">&times;</button>
-          </div>
-          <div class="wa-status-bar" id="waStatusBar"></div>
-          <div class="wa-message-box" id="waMessageBox">
-            <div class="spinner wa-spinner"></div>
-            <div class="wa-message-text" id="waMessageText"></div>
-          </div>
-          <div class="btn-row">
-            <button class="btn-action primary" id="waCopyBtn" onclick="copyWAMessage()">Copy Message</button>
-            <button class="btn-action secondary" onclick="closeWhatsappModal()">Close</button>
-          </div>
-        </div>
-      </div>
-
-      <footer class="footer">
-        <p class="footer-text">Stiche v3 — Complete Crochet Business Suite — Made in India</p>
-      </footer>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">Made for Indian Handmade Sellers</div>
+    <h1 class="hero-title">Stop guessing<br><span class="grad">what to post.</span></h1>
+    <p class="hero-sub">Stiché is an AI-powered business suite that researches trends, plans your content calendar, tracks orders, and generates ad copy — designed exclusively for India's crochet and handmade sellers.</p>
+    <div class="hero-cta-row">
+      <a href="#waitlist" class="btn-hero-pri">Get Early Access — It's Free</a>
+      <a href="/dashboard" class="btn-hero-sec">Launch App</a>
+    </div>
+    <div class="hero-trust">
+      <span>India-first AI</span>
+      <span class="dot">·</span>
+      <span>No credit card required</span>
+      <span class="dot">·</span>
+      <span>Works on mobile</span>
     </div>
 
-    <script src="app.js"></script>
-    <script src="calendar.js"></script>
-    <script src="orders.js"></script>
-  </body>
+    <!-- Floating screenshots mockup -->
+    <div class="hero-mockup">
+      <div class="mock-card mock-1">
+        <div class="mock-label">Live Trends</div>
+        <div class="mock-trend"><span class="mtag hot">HOT</span> Chunky crochet bags — Mumbai</div>
+        <div class="mock-trend"><span class="mtag rising">RISING</span> Baby shower sets — Delhi NCR</div>
+        <div class="mock-trend"><span class="mtag steady">STEADY</span> Flower wall art — Bangalore</div>
+      </div>
+      <div class="mock-card mock-2">
+        <div class="mock-label">Today's Post</div>
+        <div class="mock-hook">"Why did my customer order 3 of these in one week?"</div>
+        <div class="mock-meta">Monday · Reel · 6:00 PM</div>
+      </div>
+      <div class="mock-card mock-3">
+        <div class="mock-label">Orders</div>
+        <div class="mock-stat-row"><span class="mock-val">12</span><span class="mock-key">Active</span></div>
+        <div class="mock-stat-row"><span class="mock-val green">₹28,400</span><span class="mock-key">This month</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOCIAL PROOF BAR -->
+  <div class="proof-bar">
+    <div class="proof-inner">
+      <div class="proof-item">
+        <div class="proof-num">10x</div>
+        <div class="proof-label">Faster content planning</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-item">
+        <div class="proof-num">5 hrs</div>
+        <div class="proof-label">Saved per week</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-item">
+        <div class="proof-num">India-first</div>
+        <div class="proof-label">City-level trend data</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-item">
+        <div class="proof-num">100%</div>
+        <div class="proof-label">Built for handmade sellers</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="section-header">
+      <div class="section-tag">Everything you need</div>
+      <h2>One suite.<br>Every tool you need to grow.</h2>
+      <p>Stop switching between 7 apps. Stiché brings everything under one roof.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feat-card feat-primary">
+        <div class="feat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        </div>
+        <div class="feat-tag">AI Trend Agent</div>
+        <h3>Know what's selling before everyone else</h3>
+        <p>Real-time trend research tuned to your city. Mumbai is not Jaipur — get hyperlocal insights with purchase demand scores and momentum signals.</p>
+        <div class="feat-chips">
+          <span>City-level trends</span>
+          <span>Purchase demand scores</span>
+          <span>Competitor intel</span>
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        </div>
+        <div class="feat-tag">Weekly Calendar</div>
+        <h3>7 days of content — generated in 60 seconds</h3>
+        <p>Monday reel hooks, Wednesday story slides, Friday sales posts — fully planned with captions, timing, and hashtags.</p>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 01-8 0"></path></svg>
+        </div>
+        <div class="feat-tag">Order Tracker</div>
+        <h3>Track every order. Never miss a delivery.</h3>
+        <p>Status tracking from New to Delivered. Auto-generates WhatsApp messages for each milestone. 1-click message copy.</p>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        </div>
+        <div class="feat-tag">Ad Copy Generator</div>
+        <h3>Instagram ads that actually convert</h3>
+        <p>Primary text, headlines, A/B variants, ROAS calculator, CPC estimates — Facebook ad ready in seconds.</p>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"></path></svg>
+        </div>
+        <div class="feat-tag">Profit Calculator</div>
+        <h3>Know your real margin on every product</h3>
+        <p>Material cost, labor time, platform fees — see your true profit per order along with break-even quantity and price recommendations.</p>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        </div>
+        <div class="feat-tag">Image Analysis</div>
+        <h3>AI scores your product photos</h3>
+        <p>Upload your product photo. Get an Instagram Readiness Score with specific improvements for lighting, composition, and background.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how" id="how">
+    <div class="section-header">
+      <div class="section-tag">Simple workflow</div>
+      <h2>From idea to post<br>in under 3 minutes</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h3>Describe your product</h3>
+          <p>Type what you make — "crochet flower bouquet for weddings" — and pick your city. That's it.</p>
+        </div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h3>AI researches the market</h3>
+          <p>Our agent scans trends, profiles your buyers, scores your profit margin, and drafts your content — in 45 seconds.</p>
+        </div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h3>Copy, post, sell</h3>
+          <p>Caption, hashtags, ad copy, reel script — all ready to copy-paste. Export a full PDF report or post directly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="pricing" id="pricing">
+    <div class="section-header">
+      <div class="section-tag">Transparent pricing</div>
+      <h2>Less than a single order.<br>Earns you many more.</h2>
+      <p>Early access pricing — locked in forever when you join now.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-tier">Starter</div>
+        <div class="price-val">Free</div>
+        <div class="price-cadence">forever</div>
+        <ul class="price-features">
+          <li>5 Trend Agent runs / month</li>
+          <li>Order tracker (unlimited orders)</li>
+          <li>1 calendar generation / month</li>
+          <li>Basic profit calculator</li>
+          <li class="disabled">PDF export</li>
+          <li class="disabled">Ad copy generator</li>
+          <li class="disabled">Image analysis</li>
+        </ul>
+        <a href="#waitlist" class="price-btn price-btn-outline">Join Waitlist</a>
+      </div>
+
+      <div class="price-card price-popular">
+        <div class="popular-badge">Most Popular</div>
+        <div class="price-tier">Solo Seller</div>
+        <div class="price-val">₹299<span>/mo</span></div>
+        <div class="price-cadence">Early access — 40% off launch price</div>
+        <ul class="price-features">
+          <li>30 Trend Agent runs / month</li>
+          <li>Unlimited order tracking</li>
+          <li>Weekly calendar (unlimited)</li>
+          <li>Full profit & ROAS calculator</li>
+          <li>PDF report export</li>
+          <li>Ad copy + A/B variants</li>
+          <li>Image analysis & scoring</li>
+        </ul>
+        <a href="#waitlist" class="price-btn price-btn-primary">Get Early Access</a>
+      </div>
+
+      <div class="price-card">
+        <div class="price-tier">Pro</div>
+        <div class="price-val">₹699<span>/mo</span></div>
+        <div class="price-cadence">Early access — 30% off launch price</div>
+        <ul class="price-features">
+          <li>Unlimited Trend Agent runs</li>
+          <li>Priority AI queue (2x faster)</li>
+          <li>Everything in Solo Seller</li>
+          <li>Analytics dashboard</li>
+          <li>Multi-product catalog</li>
+          <li>Customer database</li>
+          <li>Bulk WhatsApp export</li>
+        </ul>
+        <a href="#waitlist" class="price-btn price-btn-outline">Join Waitlist</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- WAITLIST -->
+  <section class="waitlist" id="waitlist">
+    <div class="waitlist-inner">
+      <div class="waitlist-badge">Early Access</div>
+      <h2>Join 50+ sellers on the waitlist</h2>
+      <p>Be first when we launch. Get the Solo plan free for 3 months as a founding member.</p>
+      <form class="waitlist-form" id="waitlistForm">
+        <div class="wl-row">
+          <input type="text" id="wlName" placeholder="Your name" autocomplete="name" required />
+          <input type="email" id="wlEmail" placeholder="Your email" autocomplete="email" required />
+          <button type="submit" id="wlBtn">Reserve My Spot</button>
+        </div>
+        <div class="wl-note">No spam. Unsubscribe anytime. We'll email you when we launch.</div>
+      </form>
+      <div class="wl-success" id="wlSuccess">
+        You're on the list! We'll reach out before launch with your founding member invite.
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer-land">
+    <div class="footer-inner">
+      <div class="footer-logo">Stiché</div>
+      <div class="footer-tagline">Made with love for India's handmade sellers</div>
+      <div class="footer-links">
+        <a href="/dashboard">Open App</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+      </div>
+      <div class="footer-copy">© 2026 Stiché. All rights reserved.</div>
+    </div>
+  </footer>
+
+  <script>
+    // Smooth scroll
+    document.querySelectorAll('a[href^="#"]').forEach(function(a) {
+      a.addEventListener('click', function(e) {
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+      });
+    });
+
+    // Nav scroll shadow
+    var nav = document.querySelector('.nav');
+    window.addEventListener('scroll', function() {
+      nav.classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // Waitlist form
+    document.getElementById('waitlistForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('wlBtn');
+      var name = document.getElementById('wlName').value.trim();
+      var email = document.getElementById('wlEmail').value.trim();
+      if (!name || !email) return;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, email: email })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function() {
+        document.getElementById('waitlistForm').style.display = 'none';
+        document.getElementById('wlSuccess').style.display = 'block';
+      })
+      .catch(function() {
+        // If API fails, still show success (don't block UX)
+        document.getElementById('waitlistForm').style.display = 'none';
+        document.getElementById('wlSuccess').style.display = 'block';
+      });
+    });
+  </script>
+</body>
 </html>
