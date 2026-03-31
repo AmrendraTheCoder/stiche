@@ -11,6 +11,12 @@ import { getOrdersCollection } from "../lib/db";
 
 const app = express();
 
+// ── Trust proxy — required on Vercel (sits behind a load balancer) ────
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+// because Vercel sets X-Forwarded-For but Express doesn't trust it by default.
+// '1' means trust exactly one proxy hop (Vercel's edge).
+app.set("trust proxy", 1);
+
 // ── Static files (local dev only) ────────────────────────────────────────
 // On Vercel, static files are served directly from /public (outputDirectory).
 // Locally, Express must serve them since there's no Vercel CDN.
@@ -88,12 +94,15 @@ function setCache(key: string, data: unknown): void {
 }
 
 // ── Rate Limiting ─────────────────────────────────────────────────────
+// validate: { xForwardedForHeader: false } suppresses the ERR_ERL_FORWARDED_HEADER
+// warning — we've already handled trust proxy above so this is safe.
 const agentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
   message: { error: "Too many requests. Please wait 15 minutes before trying again." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 
 const messageLimiter = rateLimit({
@@ -102,6 +111,7 @@ const messageLimiter = rateLimit({
   message: { error: "Too many message requests. Please wait." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 
 // ── Multer ────────────────────────────────────────────────────────────

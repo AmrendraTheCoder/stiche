@@ -116,7 +116,7 @@ function getText(content: any[]): string {
  *   Phase 3: 2A + 2B run in parallel (both use Phase 2 outputs, independent outputs)
  *   Phase 4: Call 3 runs alone (image vision, conditional)
  *
- * Estimated time: ~55-65s vs ~120s sequential → stays under Vercel's 300s limit
+ * Estimated time: ~45-55s — within Vercel Hobby's 60s limit (5 searches vs 10)
  * Cost vs all-Sonnet: ~65% cheaper per run (Haiku = 3x cheaper input, 3x cheaper output)
  */
 export async function runAgentPipeline(
@@ -156,41 +156,27 @@ export async function runAgentPipeline(
   console.log("Call 1A: Deep web search for comprehensive market intel...");
   let rawResearch = "";
   try {
-    const searchPrompt = `You are a senior market research analyst specializing in the Indian handmade & artisan economy. Conduct THOROUGH web research on the following — use ALL available search queries to gather the deepest possible intelligence.
+    const searchPrompt = `You are a senior market research analyst specializing in the Indian handmade & artisan economy. Conduct focused web research on the following — use all available search queries.
 
 RESEARCH TARGET: "${topic}" in the "${niche}" market in ${locationStr}, India.
 
-Search for ALL of the following (use multiple searches, do NOT skip any):
+Search for the following (use up to 5 searches, prioritize by order):
 
-1. TRENDING PRODUCTS: What specific ${niche} products are trending on Instagram India RIGHT NOW? Search for "trending crochet products India 2025", "handmade trending India Instagram". Look for real product names, styles, colors trending this season.
+1. TRENDING PRODUCTS & PRICING: What specific ${niche} products are trending on Instagram India RIGHT NOW? Search "trending ${topic} India 2025" and "${topic} price India handmade". Get actual product names, styles, and current INR price ranges from Etsy, Meesho, Amazon Handmade.
 
-2. PRICING INTELLIGENCE: Search Etsy India, Amazon Handmade, Meesho, and Instagram shops for "${topic}" pricing. Get ACTUAL price ranges in INR. Search for "${topic} price India", "${topic} Etsy India", "${topic} handmade price".
+2. BUYER DEMOGRAPHICS & REGIONAL DEMAND: Who buys handmade ${niche} in India? Which cities/states have highest demand? Search "handmade ${niche} buyer demographics India" and "craft market India cities statistics".
 
-3. REGIONAL DEMAND: Which Indian states/cities have highest demand for handmade ${niche} products? Search for "handmade crochet demand India cities", "craft market India statistics".
+3. COMPETITOR ANALYSIS: Top Instagram sellers in this niche in India. Search "top ${niche} sellers Instagram India 2025". Note their follower counts, pricing, content style.
 
-4. BUYER DEMOGRAPHICS: Who buys handmade ${niche} in India? Age, gender, income, motivations. Search for "handmade buyer demographics India", "who buys crochet products India".
+4. SEASONAL & PLATFORM TRENDS: Upcoming festivals/seasons creating demand + what's selling on each platform. Search "${niche} bestselling Meesho" or "trending handmade India festival gifts".
 
-5. COMPETITOR ANALYSIS: Top Instagram sellers in this niche in India. Search for "top crochet sellers Instagram India", "best handmade shops India Instagram". Note their follower counts, pricing, style.
+5. MATERIAL COSTS & INSTAGRAM STRATEGY: Current Indian wholesale prices for ${niche} materials + best Instagram posting strategies for Indian handmade sellers. Search "yarn price India wholesale 2025" or "Instagram best time post India handmade".
 
-6. PLATFORM BESTSELLERS: What's selling best on each platform right now? Search for "bestselling handmade Meesho", "trending Etsy India handmade".
-
-7. SEASONAL TRENDS: Upcoming festivals, seasons, events that create demand. Search for "festival gifting handmade India calendar", "seasonal craft demand India".
-
-8. MATERIAL COSTS: Current prices of yarn, thread, supplies in India. Search for "${niche} material cost India", "yarn price India wholesale 2025".
-
-9. INSTAGRAM BEST PRACTICES FOR INDIAN SELLERS: Best posting times IST, formats, engagement tactics. Search for "Instagram best time post India 2025", "Instagram reels strategy handmade sellers".
-
-${city ? `10. LOCAL MARKET DATA: Population, income, local craft scene, shopping habits specific to ${city}. Search for "${city} craft market", "${city} population income statistics", "${city} festivals calendar".` : ""}
-
-${instagramHandle ? `11. INSTAGRAM PROFILE: Search for "@${instagramHandle}" on Instagram — follower count, engagement patterns, content style, posting frequency, growth trajectory. Search for "${instagramHandle} Instagram analytics", "@${instagramHandle} followers".` : ""}
-
-12. WHOLESALE VS RETAIL: Price differences, bulk order trends, B2B opportunities for ${niche} products. Search for "handmade wholesale India", "bulk crochet orders India".
+${city ? `BONUS — LOCAL DATA: If time allows, search "${city} craft market" or "${city} festivals calendar" for city-specific context.` : ""}
 
 INSTRUCTIONS:
-- Search AGGRESSIVELY — use all 10 search queries
 - Include ACTUAL NUMBERS from search results (prices in ₹, follower counts, percentages)
-- Note the SOURCE of each data point
-- Provide a comprehensive research report covering all 12 areas above
+- Cover all 5 areas with the most relevant data you find
 - Do NOT make up data — report what you actually find, note gaps`;
 
     const response = await getAnthropic().messages.create({
@@ -199,7 +185,7 @@ INSTRUCTIONS:
       tools: [{
         type: "web_search_20250305" as any,
         name: "web_search",
-        max_uses: 10,
+        max_uses: 5,  // 5 searches keeps Call 1A under ~20s (was 10 → ~40s+)
       } as any],
       messages: [{ role: "user", content: searchPrompt }],
     });
