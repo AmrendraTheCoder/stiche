@@ -411,13 +411,16 @@ app.delete("/api/orders/:id", async (req: Request, res: Response) => {
 app.get("/api/health", (_req: Request, res: Response) => {
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+  const hasExa = !!process.env.EXA_API_KEY;
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: "6.0.0",
+    version: "7.0.0",
     environment: process.env.VERCEL ? "vercel" : "local",
+    searchEngine: "exa-deep-reasoning",
     keys: {
       anthropic: hasAnthropic ? "set" : "MISSING - set ANTHROPIC_API_KEY in Vercel dashboard",
+      exa: hasExa ? "set" : "MISSING - set EXA_API_KEY for web search",
       openrouter: hasOpenRouter ? "set" : "not set (optional)",
       mongodb: !!process.env.MONGODB_URI ? "set" : "not set (orders use local file)",
     },

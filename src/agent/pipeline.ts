@@ -3,6 +3,7 @@ import {
   AgentInput,
   AgentOutput,
 } from "./types";
+import { runExaResearch, runExaPinterestResearch } from "../lib/exa-search";
 
 let _anthropic: Anthropic | null = null;
 
@@ -151,50 +152,17 @@ export async function runAgentPipeline(
   };
 
   // ══════════════════════════════════════════════════════════════════
-  // CALL 1A: Deep Web Search — 10 searches, comprehensive research
+  // PHASE 0: Exa Deep Research — 3 parallel searches, 40+ results
+  // Replaces Claude's web_search tool with Exa's deep-reasoning API
   // ══════════════════════════════════════════════════════════════════
-  console.log("Call 1A: Deep web search for comprehensive market intel...");
+  console.log("Phase 0: Exa deep research — 3 parallel searches...");
   let rawResearch = "";
   try {
-    const searchPrompt = `You are a senior market research analyst specializing in the Indian handmade & artisan economy. Conduct focused web research on the following — use all available search queries.
-
-RESEARCH TARGET: "${topic}" in the "${niche}" market in ${locationStr}, India.
-
-Search for the following (use up to 5 searches, prioritize by order):
-
-1. TRENDING PRODUCTS & PRICING: What specific ${niche} products are trending on Instagram India RIGHT NOW? Search "trending ${topic} India 2025" and "${topic} price India handmade". Get actual product names, styles, and current INR price ranges from Etsy, Meesho, Amazon Handmade.
-
-2. BUYER DEMOGRAPHICS & REGIONAL DEMAND: Who buys handmade ${niche} in India? Which cities/states have highest demand? Search "handmade ${niche} buyer demographics India" and "craft market India cities statistics".
-
-3. COMPETITOR ANALYSIS: Top Instagram sellers in this niche in India. Search "top ${niche} sellers Instagram India 2025". Note their follower counts, pricing, content style.
-
-4. SEASONAL & PLATFORM TRENDS: Upcoming festivals/seasons creating demand + what's selling on each platform. Search "${niche} bestselling Meesho" or "trending handmade India festival gifts".
-
-5. MATERIAL COSTS & INSTAGRAM STRATEGY: Current Indian wholesale prices for ${niche} materials + best Instagram posting strategies for Indian handmade sellers. Search "yarn price India wholesale 2025" or "Instagram best time post India handmade".
-
-${city ? `BONUS — LOCAL DATA: If time allows, search "${city} craft market" or "${city} festivals calendar" for city-specific context.` : ""}
-
-INSTRUCTIONS:
-- Include ACTUAL NUMBERS from search results (prices in ₹, follower counts, percentages)
-- Cover all 5 areas with the most relevant data you find
-- Do NOT make up data — report what you actually find, note gaps`;
-
-    const response = await getAnthropic().messages.create({
-      model: HAIKU, // Research: Haiku does web search just as well at 3x lower cost
-      max_tokens: 6000,
-      tools: [{
-        type: "web_search_20250305" as any,
-        name: "web_search",
-        max_uses: 5,  // 5 searches keeps Call 1A under ~20s (was 10 → ~40s+)
-      } as any],
-      messages: [{ role: "user", content: searchPrompt }],
-    });
-
-    rawResearch = getText(response.content);
-    console.log("  Research gathered:", rawResearch.length, "chars");
+    rawResearch = await runExaResearch(topic, niche, region, city);
+    console.log("  Exa research gathered:", rawResearch.length, "chars");
   } catch (err) {
-    console.error("Call 1A failed:", (err as Error).message);
-    rawResearch = `Topic: ${topic}, Niche: ${niche}, Region: ${locationStr}. No web search data available — generate from domain knowledge.`;
+    console.error("Exa research failed:", (err as Error).message);
+    rawResearch = `Topic: ${topic}, Niche: ${niche}, Region: ${locationStr}. No Exa search data available — generate from domain knowledge.`;
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -715,15 +683,27 @@ Return ONLY a valid JSON object:
   // PHASE 4: Call 3 — Image Analysis + Pinterest (conditional)
   // ══════════════════════════════════════════════════════════════════
   if (imageBase64 && imageMimeType) {
-    console.log("Call 3: Image analysis + Pinterest suggestions...");
+    console.log("Call 3: Image analysis + Pinterest (Exa-powered)...");
+
+    // Run Exa Pinterest search in parallel with Claude vision analysis
+    const [pinterestData] = await Promise.all([
+      runExaPinterestResearch(topic, niche).catch(err => {
+        console.error("  Exa Pinterest search failed:", (err as Error).message);
+        return "No Pinterest data available.";
+      }),
+    ]);
+
     try {
       const visionPrompt = `You are an expert INSTAGRAM VISUAL STRATEGIST and PRODUCT PHOTOGRAPHER who has styled 1000+ product photoshoots for Indian handmade brands. You know exactly what makes a product photo go viral on Instagram.
 
-Analyze this product image with an expert eye. Search Pinterest for similar trending content to generate ideas.
+Analyze this product image with an expert eye. Use the Pinterest trend data below to generate inspired content ideas.
 
 ═══ CONTEXT ═══
 Product niche: "${topic}" / "${niche}"
 Target market: ${locationStr}, India
+
+═══ PINTEREST TREND DATA (from Exa search) ═══
+${typeof pinterestData === 'string' ? pinterestData.slice(0, 5000) : 'No Pinterest data available.'}
 
 ═══ YOUR TASK ═══
 Return ONLY a valid JSON object:
@@ -752,12 +732,12 @@ Return ONLY a valid JSON object:
   },
   "pinterestSuggestions": [
     {
-      "idea": "<specific content idea inspired by Pinterest trends>",
+      "idea": "<specific content idea inspired by Pinterest trends above>",
       "whyItWorks": "<psychology behind why this type of content performs>",
       "searchTerms": ["<Pinterest search term 1>", "<term 2>", "<term 3>"],
       "estimatedEngagement": "high"
     },
-    <provide exactly 6 Pinterest-inspired content ideas>
+    <provide exactly 6 Pinterest-inspired content ideas — use REAL data from the Pinterest trends above>
   ]
 }
 
@@ -773,11 +753,6 @@ Return ONLY valid JSON.`;
       const response = await getAnthropic().messages.create({
         model: SONNET,
         max_tokens: 3000,
-        tools: [{
-          type: "web_search_20250305" as any,
-          name: "web_search",
-          max_uses: 3,
-        } as any],
         messages: [{
           role: "user",
           content: [
@@ -809,6 +784,6 @@ Return ONLY valid JSON.`;
     }
   }
 
-  console.log("Pipeline v3 complete!\n");
+  console.log("Pipeline v4 (Exa-powered) complete!\n");
   return result;
 }
