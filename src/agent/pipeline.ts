@@ -100,25 +100,30 @@ function getText(content: any[]): string {
     .join("\n");
 }
 
-// ─── PIPELINE v4 — SMART COST-OPTIMIZED ARCHITECTURE ────────────────
+// ─── PIPELINE v4 — EXA DEEP-REASONING + ANTHROPIC MAX-QUALITY ───────
 /**
- * 6-CALL ARCHITECTURE (smart model routing for max quality/$ ratio):
+ * 5-PHASE ARCHITECTURE (Exa deep-reasoning + Anthropic smart routing):
  *
- * CALL 1A — Deep Web Search  (HAIKU  + 10 web searches, 6000 tokens) → raw market intel
- * CALL 1B — Market Analytics (HAIKU, 6000 tokens) → trends, traffic, city, personas
- * CALL 1C — Financial Intel  (HAIKU, 3000 tokens) → profit, pricing, competitor analysis
- * CALL 2A — Content Strategy (SONNET, 4000 tokens) → hooks, caption, hashtags, insight ← QUALITY
- * CALL 2B — Ad & Reel Engine (SONNET, 4000 tokens) → ad copy, ROAS, reel script ← QUALITY
- * CALL 3  — Image+Pinterest  (SONNET + vision + 3 searches, 3000 tokens) [conditional] ← QUALITY
+ * PHASE 0 — Exa Deep Research (4 parallel deep-reasoning searches)
+ *           → 75+ results with full text, structured summaries,
+ *             subpage content, outbound links, 6000-char highlights
+ *           → Feeds MASSIVE research corpus into all Claude calls
+ *
+ * CALL 1B — Market Analytics (HAIKU, 8000 tokens) → trends, traffic, city, personas
+ * CALL 1C — Financial Intel  (HAIKU, 5000 tokens) → profit, pricing, competitor analysis
+ * CALL 2A — Content Strategy (SONNET, 4000 tokens) → hooks, caption, hashtags, insight
+ * CALL 2B — Ad & Reel Engine (SONNET, 4000 tokens) → ad copy, ROAS, reel script
+ * CALL 3  — Image+Pinterest  (SONNET + vision + Exa Pinterest, 3000 tokens) [conditional]
  *
  * PARALLEL EXECUTION:
- *   Phase 1: 1A runs alone (web search, needs to complete first)
- *   Phase 2: 1B + 1C run in parallel (both use 1A's research, independent outputs)
- *   Phase 3: 2A + 2B run in parallel (both use Phase 2 outputs, independent outputs)
- *   Phase 4: Call 3 runs alone (image vision, conditional)
+ *   Phase 0: Exa runs 4 deep-reasoning searches in parallel (~5-15s)
+ *   Phase 1: 1B + 1C run in parallel (both use Exa research, independent outputs)
+ *   Phase 2: 2A + 2B run in parallel (both use Phase 1 outputs, independent outputs)
+ *   Phase 3: Call 3 runs alone (Exa Pinterest + Claude vision, conditional)
  *
- * Estimated time: ~45-55s — within Vercel Hobby's 60s limit (5 searches vs 10)
- * Cost vs all-Sonnet: ~65% cheaper per run (Haiku = 3x cheaper input, 3x cheaper output)
+ * Exa deep-reasoning: $7/1k requests + $1/1k pages content
+ * Claude: Haiku $1/$5, Sonnet $3/$15 per MTok
+ * Result: Maximum data quality at optimized cost
  */
 export async function runAgentPipeline(
   input: AgentInput,
@@ -129,7 +134,7 @@ export async function runAgentPipeline(
 
   const { topic, niche, region, city, hookStyle, goal, imageBase64, imageMimeType, instagramHandle } = input;
   const locationStr = city ? `${city}, ${region}` : region;
-  console.log(`\nPipeline v3: "${topic}" / "${niche}" / ${locationStr}` + (instagramHandle ? ` / IG: @${instagramHandle}` : ""));
+  console.log(`\nPipeline v4 (Exa-powered): "${topic}" / "${niche}" / ${locationStr}` + (instagramHandle ? ` / IG: @${instagramHandle}` : ""));
 
   const result: AgentOutput = {
     trends: [],
@@ -152,10 +157,11 @@ export async function runAgentPipeline(
   };
 
   // ══════════════════════════════════════════════════════════════════
-  // PHASE 0: Exa Deep Research — 3 parallel searches, 40+ results
-  // Replaces Claude's web_search tool with Exa's deep-reasoning API
+  // PHASE 0: Exa Deep-Reasoning Research — 4 parallel searches, 75+ results
+  // Uses deep-reasoning mode with additionalQueries, systemPrompt,
+  // outputSchema, structured summary.schema, livecrawl, subpages, links
   // ══════════════════════════════════════════════════════════════════
-  console.log("Phase 0: Exa deep research — 3 parallel searches...");
+  console.log("Phase 0: Exa deep-reasoning research — 4 parallel searches...");
   let rawResearch = "";
   try {
     rawResearch = await runExaResearch(topic, niche, region, city);
@@ -166,9 +172,10 @@ export async function runAgentPipeline(
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // PHASE 2: Run 1B (Market Analytics) + 1C (Financial) in parallel — both need 1A research
+  // PHASE 1: Run 1B (Market Analytics) + 1C (Financial) in parallel
+  // Both receive the MASSIVE Exa research corpus for maximum quality
   // ══════════════════════════════════════════════════════════════════
-  console.log("Phase 2: Running calls 1B + 1C in parallel...");
+  console.log("Phase 1: Running calls 1B + 1C in parallel (Exa-enriched)...");
   await Promise.all([
     // ─── CALL 1B: Market Analytics ───────────────────────────────────────────────────
     (async () => {
@@ -197,10 +204,10 @@ export async function runAgentPipeline(
 
     const structurePrompt = `You are a SENIOR MARKET RESEARCH ANALYST at a top Indian e-commerce consultancy specializing in handmade & artisan products. You have 15 years of experience analyzing the Indian craft market.
 
-Your task: Transform raw research data into a precisely structured analytics report. Every field must contain REAL, SPECIFIC, ACTIONABLE data — generic filler is unacceptable.
+Your task: Transform the comprehensive Exa deep-reasoning research data below into a precisely structured analytics report. This data includes structured summaries with SPECIFIC prices, competitor metrics, demographics, and trend data extracted by the Exa AI search agent. Use ALL of this data — every field must contain REAL, SPECIFIC, ACTIONABLE data from the research.
 
-═══ RAW RESEARCH DATA ═══
-${rawResearch.slice(0, 10000)}
+═══ EXA DEEP-REASONING RESEARCH DATA ═══
+${rawResearch.slice(0, 30000)}
 
 ═══ ANALYSIS PARAMETERS ═══
 PRODUCT: "${topic}" | NICHE: "${niche}" | LOCATION: ${locationStr}, India | GOAL: ${goal}
@@ -298,7 +305,7 @@ Return ONLY a valid JSON object. Fill EVERY field with substantive, research-bac
 
     const response = await getAnthropic().messages.create({
       model: HAIKU, // Analytics: structured JSON output — Haiku excels at this
-      max_tokens: 6000,
+      max_tokens: 8000,
       messages: [{ role: "user", content: structurePrompt }],
     });
 
@@ -334,8 +341,8 @@ Return ONLY a valid JSON object. Fill EVERY field with substantive, research-bac
 Product: "${topic}" | Niche: "${niche}" | Location: ${locationStr}, India
 Goal: ${goal}
 
-Market research data (extract relevant pricing/cost info):
-${rawResearch.slice(0, 5000)}
+Exa deep-reasoning research data (includes structured pricing, competitor, and material cost data):
+${rawResearch.slice(0, 15000)}
 
 ═══ YOUR TASK ═══
 Create a comprehensive financial analysis. Every number must be REALISTIC for the Indian handmade market. Show your work in the formulae examples.
@@ -448,7 +455,7 @@ Return ONLY a valid JSON object:
 
     const response = await getAnthropic().messages.create({
       model: HAIKU, // Financial data: Haiku handles math and structured output perfectly
-      max_tokens: 3000,
+      max_tokens: 5000,
       messages: [{ role: "user", content: financialPrompt }],
     });
 
