@@ -27,9 +27,9 @@
     <div class="onb-header-center">
       <p class="onb-header-tagline">Business Profile Setup — takes about 3 minutes</p>
       <div class="onb-header-badges">
-        <span class="badge glow-badge">Made in India</span>
+        <!-- <span class="badge glow-badge">Made in India</span>
         <span class="badge">Personalised AI</span>
-        <span class="badge">Self-Learning</span>
+        <span class="badge">Self-Learning</span> -->
       </div>
     </div>
 
@@ -42,7 +42,7 @@
 <!-- ══ 3-COLUMN SHELL ═══════════════════════════════════════════════ -->
 <div class="onb-shell">
 
-  <!-- LEFT: Step flow -->
+  <!-- LEFT: Step flow — independent scroll -->
   <aside class="onb-steps" id="stepsPanel">
     <div class="panel-label">Setup Progress</div>
 
@@ -105,14 +105,18 @@
     </div>
   </aside>
 
-  <!-- CENTER: Dynamic form -->
+  <!-- CENTER: Dynamic form — independent scroll -->
   <main id="formArea"></main>
 
-  <!-- RIGHT: Live profile summary -->
+  <!-- RIGHT: Live profile summary — independent scroll -->
   <aside class="onb-right" id="rightPanel">
 
+    <!-- Panel label with saved badge (JS injects badge when profile exists) -->
+    <div class="panel-label-row">
+      <div class="panel-label" id="profilePanelLabel">Your Business Profile</div>
+    </div>
+
     <div class="summary-card">
-      <div class="panel-label">Your Business Profile</div>
       <div id="summaryContent">
         <div class="summary-empty">
           <div class="summary-empty-icon">
