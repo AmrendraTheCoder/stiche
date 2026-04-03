@@ -288,6 +288,37 @@ textarea.field-input { resize: vertical; min-height: 76px; line-height: 1.6; }
 .chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .chip.selected { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
+/* Multi-select chip grids */
+.chip-grid-multi .chip.selected {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  position: relative;
+}
+.chip-grid-multi .chip.selected::after {
+  content: "✓";
+  font-size: 9px;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px; height: 14px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 14px;
+  text-align: center;
+}
+.multi-hint {
+  color: var(--accent);
+  font-style: italic;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 /* Scale chips (1-5 / rating rows) */
 .scale-row { display: flex; gap: 8px; align-items: center; }
 .scale-chip {

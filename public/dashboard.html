@@ -34,6 +34,26 @@
     </style>
   </head>
   <body>
+    <!-- ── FIXED LEFT SIDEBAR: Business Profile ──────────────────── -->
+    <aside class="profile-sidebar" id="profileSidebar">
+      <div class="ps-logo-row">
+        <div class="logo-wrapper" style="display:inline-block">
+          <div class="logo-glow"></div>
+          <div class="logo" style="font-size:24px;letter-spacing:-1px">Stiché</div>
+        </div>
+      </div>
+      <!-- Populated by profile-loader.js -->
+      <div id="profileSidebarContent">
+        <!-- Shown when no profile -->
+        <div class="ps-empty" id="psSidebarEmpty">
+          <div class="ps-empty-label">No profile yet</div>
+          <a href="/onboarding" class="ps-setup-btn">Set up profile</a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ── MAIN CONTENT ────────────────────────────────────────────── -->
+    <div class="dashboard-main">
     <div class="container">
       <header class="header">
         <div class="logo-wrapper">
@@ -43,7 +63,6 @@
         <p class="tagline" id="shopNameTagline">India's AI Business Suite for Instagram Sellers</p>
         <div class="badges">
           <span class="badge glow-badge">Made in India</span>
-          <!-- <span class="badge tag-badge">Trends • Ads • Calendar • Orders</span> -->
           <button class="settings-btn" id="settingsBtn" title="Settings" onclick="toggleSettings()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </button>
@@ -54,10 +73,6 @@
       <div class="settings-drawer" id="settingsDrawer">
         <div class="settings-inner">
           <div class="settings-title">Settings</div>
-          <div class="field">
-            <label class="field-label">Shop Name</label>
-            <input class="field-input" id="shopNameInput" placeholder="e.g. My Crochet Studio" />
-          </div>
           <div class="settings-row">
             <div class="settings-row-label">Upcoming Festivals</div>
           </div>
@@ -80,16 +95,6 @@
       <!-- ═══ TAB 1: TREND AGENT (Profile-Aware) ═══ -->
       <div class="tab-panel active" id="panel-trend">
         <section>
-          <!-- Profile banner — injected by profile-loader.js -->
-          <div class="profile-banner" id="profileBanner" style="display:none">
-            <div class="profile-banner-inner">
-              <div>
-                <div class="profile-banner-name" id="profileBannerName"></div>
-                <div class="profile-banner-sub" id="profileBannerSub"></div>
-              </div>
-              <a class="profile-banner-link" href="/onboarding">Update profile →</a>
-            </div>
-          </div>
           <div class="card">
             <div class="section-label">
               <span>Configure Agent</span>
@@ -401,7 +406,8 @@
       <footer class="footer">
         <p class="footer-text">Stiché v8 — AI Business Suite for Indian Instagram Sellers · <a href="/onboarding" style="color:var(--accent);text-decoration:none;">Edit my business profile</a></p>
       </footer>
-    </div>
+    </div><!-- /container -->
+    </div><!-- /dashboard-main -->
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="feedback.js"></script>

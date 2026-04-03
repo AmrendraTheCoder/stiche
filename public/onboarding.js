@@ -1,9 +1,9 @@
-// public/onboarding.js  v4
+// public/onboarding.js  v5
 // Key behaviours:
-//   - Loads saved profile from localStorage on boot — no repeated questions
-//   - Returning users land directly on Step 1 (skips welcome)
-//   - Auto-redirects to dashboard after save — no manual button
-//   - Right panel shows saved data immediately when returning
+//   - Multi-select chips where multiple answers apply (e.g. material sources, content types, objections)
+//   - All answers saved to localStorage on every interaction — update profile never wipes data
+//   - Returning users land on Step 1 with everything pre-filled
+//   - Auto-redirects to dashboard after save
 
 (function () {
   "use strict";
@@ -17,52 +17,77 @@
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem("stiche_profile") || "{}"); } catch (e) {}
 
+  /* ─────────────────────────────────────────────────────────────────
+     MULTI-SELECT FIELDS — stored as arrays in localStorage
+     All other fields remain single-select (strings)
+  ───────────────────────────────────────────────────────────────── */
+  var MULTI_FIELDS = [
+    "materialSource",       // can source from mix
+    "bestPerformingContent",// multiple content types can perform well
+    "contentWeakness",      // multiple challenges
+    "topObjection",         // multiple objections to address
+    "buyingReason",         // multiple reasons
+    "brandVoice",           // can have a mixed voice
+  ];
+
+  function isMulti(key) { return MULTI_FIELDS.indexOf(key) > -1; }
+
+  /* ── Safe load — handles both old string and new array values ── */
+  function loadField(key) {
+    var v = saved[key];
+    if (isMulti(key)) {
+      if (Array.isArray(v)) return v;
+      if (typeof v === "string" && v) return [v]; // migrate old single-select
+      return [];
+    }
+    return v || "";
+  }
+
   /* ── Profile object — seeded from saved data ─────────────────── */
   var P = {
     sessionId: SID,
     // Step 1
-    shopName:       saved.shopName       || "",
-    category:       saved.category       || "",
-    city:           saved.city           || "",
-    state:          saved.state          || "",
-    yearsActive:    saved.yearsActive    || "",
+    shopName:       loadField("shopName"),
+    category:       loadField("category"),
+    city:           loadField("city"),
+    state:          loadField("state"),
+    yearsActive:    loadField("yearsActive"),
     // Step 2
-    products:       saved.products       || "",
-    flagshipProduct:saved.flagshipProduct|| "",
-    priceMin:       saved.priceMin       || 0,
-    priceMax:       saved.priceMax       || 0,
-    premiumOrBudget:saved.premiumOrBudget|| "",
-    customOrReady:  saved.customOrReady  || "",
-    leadTime:       saved.leadTime       || "",
-    materialSource: saved.materialSource || "",
+    products:       loadField("products"),
+    flagshipProduct:loadField("flagshipProduct"),
+    priceMin:       saved.priceMin  || 0,
+    priceMax:       saved.priceMax  || 0,
+    premiumOrBudget:loadField("premiumOrBudget"),
+    customOrReady:  loadField("customOrReady"),
+    leadTime:       loadField("leadTime"),
+    materialSource: loadField("materialSource"),   // ARRAY
     // Step 3
-    customerAge:    saved.customerAge    || "",
-    customerGender: saved.customerGender || "",
-    customerType:   saved.customerType   || "",
-    buyingReason:   saved.buyingReason   || "",
-    avgOrderValue:  saved.avgOrderValue  || "",
-    repeatRate:     saved.repeatRate     || "",
-    topObjection:   saved.topObjection   || "",
+    customerAge:    loadField("customerAge"),
+    customerGender: loadField("customerGender"),
+    customerType:   loadField("customerType"),
+    buyingReason:   loadField("buyingReason"),     // ARRAY
+    avgOrderValue:  loadField("avgOrderValue"),
+    repeatRate:     loadField("repeatRate"),
+    topObjection:   loadField("topObjection"),     // ARRAY
     // Step 4
-    instagramHandle:      saved.instagramHandle       || "",
-    followerCount:        saved.followerCount          || "",
-    postFrequency:        saved.postFrequency          || "",
-    bestPerformingContent:saved.bestPerformingContent  || "",
-    brandVoice:           saved.brandVoice             || "",
-    contentWeakness:      saved.contentWeakness        || "",
+    instagramHandle:       loadField("instagramHandle"),
+    followerCount:         loadField("followerCount"),
+    postFrequency:         loadField("postFrequency"),
+    bestPerformingContent: loadField("bestPerformingContent"), // ARRAY
+    brandVoice:            loadField("brandVoice"),            // ARRAY
+    contentWeakness:       loadField("contentWeakness"),       // ARRAY
     // Step 5
-    primaryGoal:           saved.primaryGoal           || "",
-    biggestChallenge:      saved.biggestChallenge      || "",
-    competitorAwareness:   saved.competitorAwareness   || "",
-    currentMonthlyRevenue: saved.currentMonthlyRevenue || "",
-    targetMonthlyRevenue:  saved.targetMonthlyRevenue  || "",
+    primaryGoal:           loadField("primaryGoal"),
+    biggestChallenge:      loadField("biggestChallenge"),
+    competitorAwareness:   loadField("competitorAwareness"),
+    currentMonthlyRevenue: loadField("currentMonthlyRevenue"),
+    targetMonthlyRevenue:  loadField("targetMonthlyRevenue"),
   };
 
   var hasProfile = !!(P.shopName && P.category);
 
   /* ── Step tracking ───────────────────────────────────────────── */
-  var TOTAL = 6;
-  var step  = hasProfile ? 1 : 0;   // returning users skip welcome
+  var step  = hasProfile ? 1 : 0;
 
   /* ── Static option sets ──────────────────────────────────────── */
   var CATEGORIES = [
@@ -109,7 +134,6 @@
     var fn = [renderWelcome, renderStep1, renderStep2, renderStep3, renderStep4, renderStep5, renderDone][s];
     if (fn) fn();
     updateSummary();
-    // Scroll center panel to top on step change
     formArea.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -131,7 +155,7 @@
   /* ── Step 1: Shop identity ───────────────────────────────────── */
   function renderStep1() {
     var returning = hasProfile
-      ? '<div class="returning-note">Updating your profile — your previous answers are pre-filled.</div>'
+      ? '<div class="returning-note">Your profile is pre-filled. Review and update anything that has changed.</div>'
       : "";
     formArea.innerHTML = card(1, "Step 1 of 5", "pct20",
       "Your shop identity",
@@ -153,26 +177,23 @@
   /* ── Step 2: Products & Pricing ─────────────────────────────── */
   function renderStep2() {
     var isHandcraft = ["Crochet & Knitting","Jewellery","Art & Prints","Pottery & Ceramics","Candles & Fragrance","Stationery & Paper"].indexOf(P.category) > -1;
-    var materialQuestion = isHandcraft
-      ? field("Where do you source your materials?", 'chips', "materialSource", "", "", MATERIAL)
+    var materialQ = isHandcraft
+      ? field("Where do you source your materials?", 'chips', "materialSource", "", "Select all that apply", MATERIAL, true)
       : "";
-
     formArea.innerHTML = card(2, "Step 2 of 5", "pct40",
       "Products & pricing",
-      "Understanding what you sell and how you price it lets the AI find the right market benchmarks, competitor pricing, and profit angles for your research.",
+      "Understanding what you sell and how you price it lets the AI find the right market benchmarks, competitor pricing, and profit angles.",
       '<div class="form-stack">' +
-        field("Describe your products in your own words", 'textarea', "products",
-          "e.g. Hand-crocheted bags and home accessories for gifting. Festival specials in October–November.", "", P.products) +
-        field("What is your single best-selling or flagship product?", 'input', "flagshipProduct",
-          "e.g. Handpainted silk dupatta, macrame wall hanging…", "", P.flagshipProduct) +
+        field("Describe your products in your own words", 'textarea', "products", "e.g. Hand-crocheted bags and home accessories for gifting. Festival specials in October–November.", "", P.products) +
+        field("What is your single best-selling or flagship product?", 'input', "flagshipProduct", "e.g. Handpainted silk dupatta, macrame wall hanging…", "", P.flagshipProduct) +
         '<div class="form-row">' +
           field("Lowest price point (₹)", 'number', "priceMin", "e.g. 350", "", P.priceMin || "") +
           field("Highest price point (₹)", 'number', "priceMax", "e.g. 4500", "", P.priceMax || "") +
         '</div>' +
         field("Where does your brand sit in the market?", 'chips', "premiumOrBudget", "", "", PREMIUM) +
         field("Are your products made to order or ready-made?", 'chips', "customOrReady", "", "", CUSTOM_READY) +
-        field("Typical production lead time for an order?", 'chips', "leadTime", "", "", LEAD_TIMES) +
-        materialQuestion +
+        field("Typical production lead time?", 'chips', "leadTime", "", "", LEAD_TIMES) +
+        materialQ +
       '</div>' +
       navRow("Continue", true)
     );
@@ -182,17 +203,15 @@
   function renderStep3() {
     formArea.innerHTML = card(3, "Step 3 of 5", "pct60",
       "Your customers",
-      "The more specifically you describe your buyer, the more precisely the AI can surface trends, personas, and content angles that match who is actually opening their wallet for you.",
+      "The more specifically you describe your buyer, the more precisely the AI can surface trends, personas, and content that matches who is actually opening their wallet.",
       '<div class="form-stack">' +
         field("What age range are most of your buyers?", 'chips', "customerAge", "", "", CUSTOMER_AGE) +
         field("Who buys from you most?", 'chips', "customerGender", "", "", CUSTOMER_GENDER) +
-        field("Describe your ideal customer in a sentence or two", 'textarea', "customerType",
-          "e.g. Working women in metros who want unique gifting options — not mass-produced items from Amazon.", "", P.customerType) +
-        field("Why do they primarily buy from you?", 'chips', "buyingReason", "", "Select the main reason", BUY_REASON) +
-        field("What is the typical order value per transaction?", 'chips', "avgOrderValue", "", "", AOV) +
-        field("How often do buyers come back for a second purchase?", 'chips', "repeatRate", "", "", REPEAT_RATE) +
-        field("What is the single biggest reason someone hesitates to buy from you?", 'chips', "topObjection", "",
-          "Knowing this helps the AI write content that overcomes it proactively.", OBJECTIONS) +
+        field("Describe your ideal customer in a sentence or two", 'textarea', "customerType", "e.g. Working women in metros who want unique gifting options — not mass-produced items from Amazon.", "", P.customerType) +
+        field("Why do they primarily buy from you?", 'chips', "buyingReason", "", "Select all that apply", BUY_REASON, true) +
+        field("Typical order value per transaction?", 'chips', "avgOrderValue", "", "", AOV) +
+        field("How often do buyers come back?", 'chips', "repeatRate", "", "", REPEAT_RATE) +
+        field("What makes someone hesitate to buy from you?", 'chips', "topObjection", "", "Select all that apply — the AI will address these in your content", OBJECTIONS, true) +
       '</div>' +
       navRow("Continue", true)
     );
@@ -203,7 +222,6 @@
     var smallAcctNote = (P.followerCount === "Under 500" || P.followerCount === "500–2,000")
       ? '<div class="field-insight">Small account? The AI will focus on high-reach hashtag strategies and hook writing to maximise organic discovery — which matters most at this stage.</div>'
       : "";
-
     formArea.innerHTML = card(4, "Step 4 of 5", "pct80",
       "Instagram & content",
       "Your content context shapes the hooks, caption style, and hashtag strategy the AI will recommend. Be honest about where you are now, not where you want to be.",
@@ -214,9 +232,9 @@
         '</div>' +
         smallAcctNote +
         field("How often do you currently post?", 'chips', "postFrequency", "", "", POST_FREQ) +
-        field("What type of content performs best for you right now?", 'chips', "bestPerformingContent", "", "Select your top performer", BEST_CONTENT) +
-        field("How would you describe your brand's voice & aesthetic?", 'chips', "brandVoice", "", "This sets the tone for all AI-generated captions and hooks.", BRAND_VOICE) +
-        field("What is your biggest content challenge?", 'chips', "contentWeakness", "", "The AI will prioritise solving this.", CONTENT_WEAKNESS) +
+        field("What content types perform best for you?", 'chips', "bestPerformingContent", "", "Select all that apply", BEST_CONTENT, true) +
+        field("How would you describe your brand's voice & aesthetic?", 'chips', "brandVoice", "", "Select all that apply — multiple voices are fine", BRAND_VOICE, true) +
+        field("What are your biggest content challenges?", 'chips', "contentWeakness", "", "Select all that apply — the AI will prioritise solving these", CONTENT_WEAKNESS, true) +
       '</div>' +
       navRow("Continue", true)
     );
@@ -226,26 +244,23 @@
   function renderStep5() {
     var hasFollowers = ["2,000–10,000","10,000–50,000","Over 50,000"].indexOf(P.followerCount) > -1;
     var compQ = hasFollowers
-      ? field("Are you aware of direct competitors on Instagram?", 'textarea', "competitorAwareness",
-          "Name 1–3 Instagram accounts or shop names that sell similar things. The AI will use these as reference benchmarks.", "", P.competitorAwareness)
-      : field("Are there any shops or brands you admire or want to be like?", 'textarea', "competitorAwareness",
-          "Name any accounts — local or global — that inspire you. The AI uses these to understand the market you want to reach.", "", P.competitorAwareness);
-
+      ? field("Are you aware of direct competitors on Instagram?", 'textarea', "competitorAwareness", "Name 1–3 Instagram accounts or shop names that sell similar things. The AI will use these as reference benchmarks.", "", P.competitorAwareness)
+      : field("Are there any shops or brands you admire?", 'textarea', "competitorAwareness", "Name any accounts — local or global — that inspire you. The AI uses these to understand the market you want to reach.", "", P.competitorAwareness);
     formArea.innerHTML = card(5, "Step 5 of 5", "pct95",
       "Your goal & current business",
-      "This is the most important step. Your primary goal becomes the north star of the AI's system prompt — every recommendation will be optimised for this.",
+      "Your primary goal becomes the north star of the AI's system prompt — every recommendation optimised for this.",
       '<div class="form-stack">' +
         field("What is your primary goal right now?", 'chips', "primaryGoal", "", "Choose the one that matters most", GOALS) +
-        field("What is the biggest thing stopping you from reaching it?", 'chips', "biggestChallenge", "", "", CHALLENGES) +
-        field("Approximate current monthly revenue from this business", 'chips', "currentMonthlyRevenue", "", "Honest answer helps calibrate advice.", REVENUE_NOW) +
-        field("What monthly revenue would make you feel you've succeeded?", 'chips', "targetMonthlyRevenue", "", "This sets the scale of ambition for the AI's recommendations.", REVENUE_TARGET) +
+        field("What is the biggest thing stopping you?", 'chips', "biggestChallenge", "", "", CHALLENGES) +
+        field("Approximate current monthly revenue", 'chips', "currentMonthlyRevenue", "", "Honest answer helps calibrate advice.", REVENUE_NOW) +
+        field("What monthly revenue would feel like success?", 'chips', "targetMonthlyRevenue", "", "This sets the scale of ambition for AI recommendations.", REVENUE_TARGET) +
         compQ +
       '</div>' +
       navRow("Save My Profile", true, true)
     );
   }
 
-  /* ── Done — auto-redirect after short delay ───────────────────── */
+  /* ── Done — auto-redirect ─────────────────────────────────────── */
   function renderDone() {
     formArea.innerHTML =
       '<div class="onb-card" style="animation:fadeUp .3s ease">' +
@@ -253,15 +268,11 @@
         '<div class="onb-card-body" style="text-align:center">' +
           '<div class="done-icon">&#10003;</div>' +
           '<div class="done-title">Profile saved</div>' +
-          '<div class="done-sub">' +
-            'Stiché now has a detailed understanding of your business. Taking you to the dashboard in a moment…' +
-          '</div>' +
+          '<div class="done-sub">Stiché now has a detailed understanding of your business. Taking you to the dashboard…</div>' +
           '<div class="done-countdown" id="doneCountdown">Redirecting in 2s</div>' +
         '</div>' +
       '</div>';
     updateSteps(6);
-
-    // Auto-redirect — no button needed
     var count = 2;
     var el = document.getElementById("doneCountdown");
     var t = setInterval(function () {
@@ -296,19 +307,25 @@
     return '<div class="onb-nav-row">' + back + '<button class="btn-next" id="primaryBtn" onclick="' + fn + '">' + label + '</button></div>';
   }
 
-  function field(label, type, key, placeholder, hint, opts) {
+  /* ── field() — multi param adds multi-select hint ───────────── */
+  function field(label, type, key, placeholder, hint, opts, multi) {
     var id    = "f_" + key;
     var value = P[key];
     var inner = "";
 
     if (type === 'chips') {
       var options = Array.isArray(opts) ? opts : [];
-      inner = '<div class="chip-grid" id="' + id + '">' +
+      inner = '<div class="chip-grid' + (multi ? ' chip-grid-multi' : '') + '" id="' + id + '" data-multi="' + (multi ? 'true' : 'false') + '">' +
         options.map(function (o) {
-          var sel = (value === o) ? ' selected' : '';
+          var sel = multi
+            ? (Array.isArray(value) && value.indexOf(o) > -1 ? ' selected' : '')
+            : (value === o ? ' selected' : '');
           return '<button type="button" class="chip' + sel + '" data-key="' + key + '" data-val="' + esc(o) + '" onclick="window._chip(this)">' + esc(o) + '</button>';
         }).join("") +
       '</div>';
+      if (multi) {
+        hint = (hint || '') + (hint ? ' ' : '') + '<span class="multi-hint">Select all that apply</span>';
+      }
     } else if (type === 'textarea') {
       inner = '<textarea class="field-input" id="' + id + '" placeholder="' + esc(placeholder) + '" oninput="window._set(\'' + key + '\',this.value)">' + esc(value || "") + '</textarea>';
     } else if (type === 'select') {
@@ -332,18 +349,38 @@
     '</div>';
   }
 
-  /* ── Chip click ──────────────────────────────────────────────── */
+  /* ── Chip click — handles both single and multi ──────────────── */
   window._chip = function (btn) {
     var key  = btn.dataset.key;
     var val  = btn.dataset.val;
     var grid = btn.parentElement;
-    grid.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
-    btn.classList.add("selected");
-    P[key] = val;
-    // Auto-save every chip click to prevent data loss
+    var isMultiGrid = grid.dataset.multi === 'true';
+
+    if (isMultiGrid) {
+      // Toggle: add/remove from array
+      btn.classList.toggle("selected");
+      var arr = Array.isArray(P[key]) ? P[key].slice() : [];
+      var idx = arr.indexOf(val);
+      if (btn.classList.contains("selected")) {
+        if (idx === -1) arr.push(val);
+      } else {
+        if (idx > -1) arr.splice(idx, 1);
+      }
+      P[key] = arr;
+    } else {
+      // Single-select: deselect others
+      grid.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
+      btn.classList.add("selected");
+      P[key] = val;
+      if (key === "followerCount" || key === "category") {
+        _autosave();
+        updateSummary();
+        render(step);
+        return;
+      }
+    }
     _autosave();
     updateSummary();
-    if (key === "followerCount" || key === "category") render(step);
   };
 
   /* ── Field setters ───────────────────────────────────────────── */
@@ -351,7 +388,6 @@
   window._setN = function (k, v) { P[k] = parseInt(v, 10) || 0; _autosave(); updateSummary(); };
 
   /* ── Auto-save to localStorage on every change ───────────────── */
-  // This ensures partial answers are never lost — even if user closes the tab mid-flow
   function _autosave() {
     try { localStorage.setItem("stiche_profile", JSON.stringify(P)); } catch (e) {}
   }
@@ -370,7 +406,7 @@
     if (!validate()) return;
     var btn = document.getElementById("primaryBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
-    _autosave(); // Save locally first — instant persistence
+    _autosave();
     try {
       var res  = await fetch("/api/business-profile", {
         method: "POST",
@@ -379,9 +415,7 @@
       });
       var json = await res.json();
       if (json.ok) localStorage.setItem("stiche_profile", JSON.stringify(json.data));
-    } catch (e) {
-      // Already autosaved locally above — safe to continue
-    }
+    } catch (e) { /* already autosaved locally */ }
     step = 6;
     render(step);
   };
@@ -417,9 +451,17 @@
   }
 
   /* ── Live summary ─────────────────────────────────────────────── */
+  function arrStr(v) {
+    if (Array.isArray(v)) return v.join(", ");
+    return v || "";
+  }
+
   function updateSummary() {
     var rows = [];
-    function add(k, v) { if (v && String(v).trim()) rows.push({ k: k, v: String(v).trim() }); }
+    function add(k, v) {
+      var s = arrStr(v);
+      if (s.trim()) rows.push({ k: k, v: s.trim() });
+    }
 
     add("Shop", P.shopName);
     add("Category", P.category);
@@ -459,8 +501,8 @@
 
     var filled = [P.shopName, P.category, P.city, P.yearsActive,
                   P.products, P.flagshipProduct, P.priceMin || P.priceMax, P.premiumOrBudget,
-                  P.customerType, P.buyingReason, P.repeatRate, P.topObjection,
-                  P.followerCount, P.brandVoice, P.bestPerformingContent,
+                  P.customerType, arrStr(P.buyingReason), P.repeatRate, arrStr(P.topObjection),
+                  P.followerCount, arrStr(P.brandVoice), arrStr(P.bestPerformingContent),
                   P.primaryGoal, P.biggestChallenge, P.targetMonthlyRevenue].filter(Boolean).length;
     var score = Math.min(100, Math.round((filled / 18) * 100));
     cBarEl.style.width = score + "%";
@@ -478,13 +520,13 @@
     if (P.premiumOrBudget)
       out.push('Positioning angle set: <strong>' + esc(P.premiumOrBudget) + '</strong>');
     if (P.customerType || P.customerAge)
-      out.push('Content skewed for <strong>' + esc(P.customerAge || "your audience") + '</strong>' + (P.buyingReason ? ' buying for <em>' + esc(P.buyingReason.toLowerCase()) + '</em>' : ''));
-    if (P.brandVoice)
-      out.push('All captions and hooks will match a <strong>' + esc(P.brandVoice.toLowerCase()) + '</strong> tone');
+      out.push('Content skewed for <strong>' + esc(P.customerAge || "your audience") + '</strong>' + (arrStr(P.buyingReason) ? ' buying for <em>' + esc(arrStr(P.buyingReason).toLowerCase()) + '</em>' : ''));
+    if (arrStr(P.brandVoice))
+      out.push('All captions and hooks will match a <strong>' + esc(arrStr(P.brandVoice).toLowerCase()) + '</strong> tone');
     if (P.primaryGoal)
       out.push('Every recommendation optimised for: <strong>' + esc(P.primaryGoal) + '</strong>');
-    if (P.topObjection)
-      out.push('Content will proactively address: <em>' + esc(P.topObjection.toLowerCase()) + '</em>');
+    if (arrStr(P.topObjection))
+      out.push('Content will proactively address: <em>' + esc(arrStr(P.topObjection).toLowerCase()) + '</em>');
     if (out.length === 0) out.push('Fill in more details to see how the AI will personalise your experience');
     return out.slice(0, 5);
   }
@@ -501,15 +543,11 @@
   };
 
   /* ── Boot ─────────────────────────────────────────────────────── */
-  // Populate summary immediately from saved profile before first render
   updateSummary();
 
-  // Show "Saved" badge in right panel label if returning user
   if (hasProfile) {
     var lbl = document.getElementById("profilePanelLabel");
-    if (lbl) {
-      lbl.innerHTML = 'Your Business Profile <span class="saved-badge">Saved</span>';
-    }
+    if (lbl) lbl.innerHTML = 'Your Business Profile <span class="saved-badge">Saved</span>';
   }
 
   render(step);
