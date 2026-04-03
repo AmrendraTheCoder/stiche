@@ -3,14 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Stiche — Crochet Business Intelligence Suite</title>
-    <meta name="description" content="India's AI-powered crochet business suite — trend agent, weekly calendar, order tracker, ad copy, ROAS calculator." />
+    <title>Stiché — AI Business Suite for Indian Instagram Sellers</title>
+    <meta name="description" content="India's AI-powered business suite — trend research, content calendar, order tracker, ad copy. Works for crochet, fashion, food, jewellery, art + more."/>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="shortcut icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="styles.css"/>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+    <link rel="shortcut icon" href="/favicon.svg"/>
+    <style>
+    /* ── AI Smarter Card ─────────────────────────────────── */
+    .ai-smarter-card { background: linear-gradient(135deg,rgba(124,106,255,0.12),rgba(168,85,247,0.1)); border:1px solid rgba(124,106,255,0.25); border-radius:14px; padding:16px; margin:12px 0 4px; }
+    .smarter-header { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
+    .smarter-icon { font-size:22px; flex-shrink:0; }
+    .smarter-title { font-size:14px; font-weight:700; color:#f0f0f5; }
+    .smarter-stars { font-size:12px; color:#888; margin-top:2px; }
+    .smarter-close { margin-left:auto; background:none; border:none; color:#888; font-size:18px; cursor:pointer; padding:0; line-height:1; }
+    .smarter-insights { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
+    .smarter-insight { font-size:13px; color:#a0d0b0; }
+    .smarter-footer { display:flex; justify-content:space-between; font-size:11px; color:#666; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px; }
+    /* ── Feedback Card ───────────────────────────────────── */
+    .feedback-card { background:rgba(124,106,255,0.08) !important; border:1px solid rgba(124,106,255,0.2) !important; }
+    .feedback-inner { display:flex; flex-direction:column; align-items:center; gap:10px; padding:8px 0; }
+    .feedback-label { font-size:14px; font-weight:600; color:#f0f0f5; }
+    .feedback-emojis { display:flex; gap:16px; }
+    .feedback-emoji-btn { background:none; border:2px solid rgba(255,255,255,0.1); border-radius:50%; width:48px; height:48px; font-size:22px; cursor:pointer; transition:transform .15s,border-color .15s; }
+    .feedback-emoji-btn:hover { transform:scale(1.2); border-color:rgba(124,106,255,0.5); }
+    .feedback-hint { font-size:11px; color:#666; }
+    .feedback-thanks { font-size:15px; font-weight:600; color:#7c6aff; padding:12px 0; }
+    </style>
   </head>
   <body>
     <div class="container">
@@ -19,7 +40,7 @@
           <div class="logo-glow"></div>
           <div class="logo">Stiché</div>
         </div>
-        <p class="tagline" id="shopNameTagline">India's AI-Powered Crochet Business Suite</p>
+        <p class="tagline" id="shopNameTagline">India's AI Business Suite for Instagram Sellers</p>
         <div class="badges">
           <span class="badge glow-badge">Made in India</span>
           <!-- <span class="badge tag-badge">Trends • Ads • Calendar • Orders</span> -->
@@ -56,9 +77,19 @@
         <button class="tab-btn" data-tab="analytics">Analytics</button>
       </nav>
 
-      <!-- ═══ TAB 1: TREND AGENT ═══ -->
+      <!-- ═══ TAB 1: TREND AGENT (Profile-Aware) ═══ -->
       <div class="tab-panel active" id="panel-trend">
         <section>
+          <!-- Profile banner — injected by profile-loader.js -->
+          <div class="profile-banner" id="profileBanner" style="display:none">
+            <div class="profile-banner-inner">
+              <div>
+                <div class="profile-banner-name" id="profileBannerName"></div>
+                <div class="profile-banner-sub" id="profileBannerSub"></div>
+              </div>
+              <a class="profile-banner-link" href="/onboarding">Update profile →</a>
+            </div>
+          </div>
           <div class="card">
             <div class="section-label">
               <span>Configure Agent</span>
@@ -137,8 +168,26 @@
                   </select>
                 </div>
               </div>
+              <!-- Topic quick picks (injected by profile-loader.js) -->
+              <div class="quick-picks" id="topicQuickPicks" style="display:none">
+                <div class="qp-label">Suggested for you:</div>
+                <div class="qp-chips" id="topicChips"></div>
+              </div>
+
+              <!-- Contextual mini-questions (injected by profile-loader.js) -->
+              <div class="context-expander" id="contextExpander" style="display:none">
+                <button type="button" class="context-toggle" id="contextToggleBtn" onclick="window.toggleContextPanel()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                  Tell the AI more about this post
+                  <span class="context-badge" id="contextBadge">optional</span>
+                </button>
+                <div class="context-panel" id="contextPanel" style="display:none">
+                  <div id="contextFields" class="form-stack"></div>
+                </div>
+              </div>
+
               <div class="field">
-                <label class="field-label" for="instagramHandle">Instagram Handle (Optional — enables public profile analysis)</label>
+                <label class="field-label" for="instagramHandle">Instagram Handle <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
                 <div style="position: relative;">
                   <span style="position: absolute; left: 12px; top: 14px; color: var(--text-muted); font-weight: 500;">@</span>
                   <input type="text" class="field-input" id="instagramHandle" placeholder="stiche.in" style="padding-left: 32px;" />
@@ -350,16 +399,18 @@
       </div>
 
       <footer class="footer">
-        <p class="footer-text">Stiché v6 — AI Business Suite for Indian Handmade Sellers</p>
+        <p class="footer-text">Stiché v8 — AI Business Suite for Indian Instagram Sellers · <a href="/onboarding" style="color:var(--accent);text-decoration:none;">Edit my business profile</a></p>
       </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="feedback.js"></script>
     <script src="app.js"></script>
     <script src="calendar.js"></script>
     <script src="orders.js"></script>
     <script src="analytics.js"></script>
     <script src="settings.js"></script>
+    <script src="profile-loader.js"></script>
     <script>
       // Clean up stale service workers from previous projects
       if ('serviceWorker' in navigator) {

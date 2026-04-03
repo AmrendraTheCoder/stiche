@@ -3,7 +3,10 @@ import {
   AgentInput,
   AgentOutput,
 } from "./types";
-import { runExaResearch, runExaPinterestResearch } from "../lib/exa-search";
+import { runExaResearch, runExaPinterestResearch, runExaWithPlannedQueries } from "../lib/exa-search";
+import { planExaQueries } from "../lib/query-planner";
+import { getBusinessProfile, getRecentSearchHistory, saveSearchHistory, getLearningMemory } from "../lib/db";
+import crypto from "crypto";
 
 let _anthropic: Anthropic | null = null;
 
@@ -157,18 +160,73 @@ export async function runAgentPipeline(
   };
 
   // ══════════════════════════════════════════════════════════════════
-  // PHASE 0: Exa Deep-Reasoning Research — 4 parallel searches, 75+ results
-  // Uses deep-reasoning mode with additionalQueries, systemPrompt,
-  // outputSchema, structured summary.schema, livecrawl, subpages, links
+  // PHASE 0: Query Planner → Exa Deep-Reasoning
+  // Step 1: Load business profile + learning memory from MongoDB
+  // Step 2: Claude Haiku plans dynamic, personalized Exa queries
+  // Step 3: Exa runs planned queries in parallel (deep-reasoning)
   // ══════════════════════════════════════════════════════════════════
-  console.log("Phase 0: Exa deep-reasoning research — 4 parallel searches...");
+  console.log("Phase 0: Loading profile + planning queries...");
+
+  // Generate a searchId for tracking this run
+  const searchId = `s_${crypto.randomBytes(6).toString("hex")}`;
+  const sessionId = input.businessContext || "anonymous";
+
+  // Load profile + history + memory (non-blocking if DB unavailable)
+  let profile = null;
+  let searchHistory: any[] = [];
+  let learning = null;
+  let businessSystemPrompt = "";
+
+  try {
+    [profile, searchHistory, learning] = await Promise.all([
+      getBusinessProfile(sessionId),
+      getRecentSearchHistory(sessionId, 8),
+      getLearningMemory(sessionId),
+    ]);
+    businessSystemPrompt = profile?.systemPrompt || "";
+    console.log(`  Profile: ${profile ? profile.shopName : "none"} | History: ${searchHistory.length} searches | Level: ${learning?.learningLevel || 1}`);
+  } catch (err) {
+    console.warn("  Profile load skipped (DB unavailable):", (err as Error).message);
+  }
+
+  // Save initial search history entry (updates later via /api/behavior)
+  if (sessionId !== "anonymous") {
+    saveSearchHistory({
+      sessionId,
+      searchId,
+      input: { topic, niche, region, city, goal },
+      feedbackEmoji: null,
+      behaviorScore: 0,
+      copiedSections: [],
+      pdfDownloaded: false,
+      timeOnResultsMs: 0,
+      topicsSearched: [topic],
+      createdAt: new Date().toISOString(),
+    }).catch(() => {});
+  }
+
+  // Run query planner (Claude Haiku generates dynamic Exa queries)
   let rawResearch = "";
   try {
-    rawResearch = await runExaResearch(topic, niche, region, city);
+    const planned = await planExaQueries(topic, niche, region, city, goal, profile, searchHistory, learning);
+
+    if (planned?.searches?.length) {
+      console.log(`  QueryPlanner: Using dynamic queries. Reasoning: ${planned.reasoning}`);
+      rawResearch = await runExaWithPlannedQueries(planned.searches);
+    } else {
+      // Fallback to hardcoded searches
+      console.log("  QueryPlanner: Returned nothing, falling back to default Exa searches...");
+      rawResearch = await runExaResearch(topic, niche, region, city);
+    }
     console.log("  Exa research gathered:", rawResearch.length, "chars");
   } catch (err) {
-    console.error("Exa research failed:", (err as Error).message);
-    rawResearch = `Topic: ${topic}, Niche: ${niche}, Region: ${locationStr}. No Exa search data available — generate from domain knowledge.`;
+    console.error("Exa/QueryPlanner error:", (err as Error).message);
+    rawResearch = `Topic: ${topic}, Niche: ${niche}, Region: ${locationStr}. Exa unavailable — generate from domain knowledge.`;
+  }
+
+  // Prepend business system context to all research for Claude calls
+  if (businessSystemPrompt) {
+    rawResearch = `═══ BUSINESS PROFILE CONTEXT ═══\n${businessSystemPrompt}\n\n${rawResearch}`;
   }
 
   // ══════════════════════════════════════════════════════════════════

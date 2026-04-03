@@ -7,7 +7,17 @@ import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { runAgentPipeline } from "../agent/pipeline";
 import { runCalendarPipeline } from "../agent/calendar-pipeline";
-import { getOrdersCollection } from "../lib/db";
+import {
+  getOrdersCollection,
+  getBusinessProfile,
+  saveBusinessProfile,
+  getSearchHistoryCollection,
+  saveSearchHistory,
+  getLearningMemoryCollection,
+  BusinessProfile,
+} from "../lib/db";
+import { updateLearningMemory, computeBehaviorScore } from "../lib/learning-engine";
+import Anthropic from "@anthropic-ai/sdk";
 
 const app = express();
 
@@ -138,13 +148,87 @@ app.post(
     const rawHook   = sanitize(req.body.hookStyle, 60);
     const rawGoal   = sanitize(req.body.goal, 100);
     const useBusinessContext = req.body.useBusinessContext;
+    const sessionId = sanitize(req.body.sessionId || req.headers["x-session-id"] as string || "", 100);
 
     if (!rawTopic && !useBusinessContext) {
       res.status(400).json({ error: "topic is required unless auto-tuning" }); return;
     }
 
-    // ── Cache check ──────────────────────────────────────────────────
-    const ck = cacheKey({ rawTopic, rawNiche, rawRegion, rawCity, rawHook, rawGoal });
+    // ── Parse full business profile (sent by profile-loader.js) ─────────
+    let savedProfile: Record<string, string> = {};
+    try {
+      const rawProfile = req.body.businessProfile;
+      if (rawProfile && typeof rawProfile === "string") {
+        savedProfile = JSON.parse(rawProfile);
+      }
+    } catch (_e) { /* ignore */ }
+
+    // ── Build enriched profile context for Exa + Claude ─────────────────
+    function buildProfileContext(): string {
+      const p = savedProfile;
+      if (!p.shopName) return "";
+      return [
+        `BUSINESS PROFILE: ${p.shopName}`,
+        `Category: ${p.category || "Handmade"}`,
+        `Location: ${[p.city, p.state].filter(Boolean).join(", ") || "India"}`,
+        `Trading since: ${p.yearsActive || ""}`,
+        p.products        ? `Products: ${p.products}` : "",
+        p.flagshipProduct ? `Flagship product: ${p.flagshipProduct}` : "",
+        (p.priceMin || p.priceMax) ? `Price range: Rs${p.priceMin || "-"} - Rs${p.priceMax || "-"}` : "",
+        p.premiumOrBudget ? `Market position: ${p.premiumOrBudget}` : "",
+        p.customOrReady   ? `Fulfilment model: ${p.customOrReady}` : "",
+        p.materialSource  ? `Material source: ${p.materialSource}` : "",
+        "",
+        "CUSTOMER PROFILE:",
+        p.customerAge     ? `Buyer age: ${p.customerAge}` : "",
+        p.customerGender  ? `Buyer gender: ${p.customerGender}` : "",
+        p.customerType    ? `Ideal customer: ${p.customerType}` : "",
+        p.buyingReason    ? `Primary buying reason: ${p.buyingReason}` : "",
+        p.avgOrderValue   ? `Average order value: ${p.avgOrderValue}` : "",
+        p.repeatRate      ? `Repeat purchase rate: ${p.repeatRate}` : "",
+        p.topObjection    ? `Top objection to overcome in content: ${p.topObjection}` : "",
+        "",
+        "INSTAGRAM & CONTENT:",
+        p.followerCount         ? `Followers: ${p.followerCount}` : "",
+        p.postFrequency         ? `Post frequency: ${p.postFrequency}` : "",
+        p.bestPerformingContent ? `Best content type: ${p.bestPerformingContent}` : "",
+        p.brandVoice            ? `Brand voice: ${p.brandVoice}` : "",
+        p.contentWeakness       ? `Content gap to address: ${p.contentWeakness}` : "",
+        "",
+        "GOALS:",
+        p.primaryGoal           ? `Primary goal: ${p.primaryGoal}` : "",
+        p.biggestChallenge      ? `Biggest challenge: ${p.biggestChallenge}` : "",
+        p.currentMonthlyRevenue ? `Current revenue: ${p.currentMonthlyRevenue}` : "",
+        p.targetMonthlyRevenue  ? `Target revenue: ${p.targetMonthlyRevenue}` : "",
+        p.competitorAwareness   ? `Competitor context: ${p.competitorAwareness}` : "",
+      ].filter(Boolean).join("\n");
+    }
+
+    // ── Collect post-level context answers ───────────────────────────────
+    function buildPostContext(): string {
+      const ctxKeys = ["ctx_specific","ctx_postType","ctx_urgency","ctx_postAudience","ctx_priceAngle","ctx_objectionAddress","ctx_hookIdea"];
+      const labels: Record<string, string> = {
+        ctx_specific: "Post subject",
+        ctx_postType: "Post format",
+        ctx_urgency: "Urgency/timing angle",
+        ctx_postAudience: "Target audience for this post",
+        ctx_priceAngle: "Price/offer angle",
+        ctx_objectionAddress: "Objection to address in post",
+        ctx_hookIdea: "Hook idea from seller",
+      };
+      const lines = ctxKeys
+        .map(k => { const v = sanitize(req.body[k] || "", 200); return v ? `${labels[k]}: ${v}` : ""; })
+        .filter(Boolean);
+      return lines.length ? "\nPOST-SPECIFIC CONTEXT (from seller):\n" + lines.join("\n") : "";
+    }
+
+    const profileCtx  = buildProfileContext();
+    const postCtx     = buildPostContext();
+    const fullContext = [profileCtx, postCtx].filter(Boolean).join("\n") || undefined;
+
+    // Cache key includes profile identity for per-user uniqueness
+    const ck = cacheKey({ rawTopic, rawNiche, rawRegion, rawCity, rawHook, rawGoal,
+      pCity: savedProfile.city || "", pGoal: savedProfile.primaryGoal || "" });
     const cached = getCached(ck);
     if (cached) {
       console.log("Cache HIT:", ck);
@@ -165,14 +249,16 @@ app.post(
       }
 
       const result = await runAgentPipeline({
-        topic: rawTopic || (businessContext ? "My Shop's Top Selling Items" : "handmade items"),
-        niche: rawNiche || "crochet & handmade",
-        region: rawRegion || "Pan India",
-        city: rawCity || undefined,
+        topic: rawTopic || (fullContext ? savedProfile.flagshipProduct || "My shop's products" : "handmade items"),
+        niche: rawNiche || savedProfile.category?.toLowerCase() || "crochet & handmade",
+        region: rawRegion || savedProfile.state || "Pan India",
+        city: rawCity || savedProfile.city || undefined,
         hookStyle: rawHook || "curiosity",
         goal: rawGoal || "grow followers organically",
         imageBase64, imageMimeType,
-        businessContext: businessContext || undefined,
+        instagramHandle: sanitize(req.body.instagramHandle || savedProfile.instagramHandle || "", 80) || undefined,
+        // Full profile + post context powers every Exa search and Claude call
+        businessContext: fullContext || businessContext || sessionId || undefined,
       });
 
       setCache(ck, result);
@@ -183,6 +269,7 @@ app.post(
     }
   },
 );
+
 
 // ── POST /api/run-calendar ─────────────────────────────────────────
 app.post(
@@ -407,7 +494,137 @@ app.delete("/api/orders/:id", async (req: Request, res: Response) => {
 });
 
 
+// ── GET /api/business-profile ────────────────────────────────────────
+app.get("/api/business-profile", async (req: Request, res: Response) => {
+  try {
+    const sessionId = (req.query.sessionId as string) || "";
+    if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+    const profile = await getBusinessProfile(sessionId);
+    res.json({ ok: true, data: profile });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/business-profile ───────────────────────────────────────
+app.post("/api/business-profile", async (req: Request, res: Response) => {
+  try {
+    const body = req.body as Partial<BusinessProfile>;
+    if (!body.sessionId) return res.status(400).json({ error: "sessionId required" });
+
+    // Generate system prompt via Claude Haiku
+    const HAIKU = "claude-haiku-4-5-20251001";
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const promptRes = await anthropic.messages.create({
+      model: HAIKU,
+      max_tokens: 400,
+      messages: [{
+        role: "user",
+        content: `Generate a concise AI system prompt (2-3 sentences) for a business analyst serving this Indian Instagram seller.
+Shop: ${body.shopName || ""}
+Category: ${body.category || ""}
+Products: ${body.products || ""}
+Location: ${body.city || ""}, ${body.state || ""}
+Price Range: ₹${body.priceMin || 0}–₹${body.priceMax || 0}
+Customer Type: ${body.customerType || ""}
+Sells Since: ${body.sellingDuration || ""}
+Followers: ${body.followerRange || ""}
+Challenge: ${body.biggestChallenge || ""}
+Goal: ${body.mainGoal || ""}
+
+Return ONLY the system prompt text, no JSON, no labels.`
+      }],
+    });
+
+    const systemPrompt = (promptRes.content[0] as any)?.text?.trim() || `You are a business analyst for ${body.shopName}, an Indian ${body.category} business.`;
+
+    const profile: BusinessProfile = {
+      sessionId: body.sessionId,
+      shopName: body.shopName || "",
+      category: body.category || "other",
+      products: body.products || "",
+      city: body.city || "",
+      state: body.state || "",
+      priceMin: body.priceMin || 0,
+      priceMax: body.priceMax || 0,
+      customerType: body.customerType || "",
+      sellingDuration: body.sellingDuration || "",
+      followerRange: body.followerRange || "",
+      biggestChallenge: body.biggestChallenge || "",
+      mainGoal: body.mainGoal || "",
+      instagramHandle: body.instagramHandle || "",
+      systemPrompt,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await saveBusinessProfile(profile);
+    res.json({ ok: true, data: profile });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/feedback ───────────────────────────────────────────────
+app.post("/api/feedback", async (req: Request, res: Response) => {
+  try {
+    const { sessionId, searchId, emoji } = req.body;
+    if (!sessionId || !searchId) return res.status(400).json({ error: "sessionId + searchId required" });
+
+    const col = await getSearchHistoryCollection();
+    await col.updateOne(
+      { searchId },
+      { $set: { feedbackEmoji: emoji, updatedAt: new Date().toISOString() } },
+      { upsert: false }
+    );
+
+    // Re-compute learning memory asynchronously
+    updateLearningMemory(sessionId).catch(console.error);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/behavior ───────────────────────────────────────────────
+app.post("/api/behavior", async (req: Request, res: Response) => {
+  try {
+    const { sessionId, searchId, action, timeOnResultsMs } = req.body;
+    if (!sessionId || !searchId) return res.status(400).json({ error: "sessionId + searchId required" });
+
+    const col = await getSearchHistoryCollection();
+    const existing = await col.findOne({ searchId });
+    if (!existing) return res.json({ ok: true }); // silently ignore
+
+    const copiedSections = Array.from(new Set([...(existing.copiedSections || []), ...(action === "copy" ? [req.body.section] : [])]));
+    const pdfDownloaded = action === "pdf" ? true : (existing.pdfDownloaded || false);
+    const ms = timeOnResultsMs || existing.timeOnResultsMs || 0;
+
+    const behaviorScore = computeBehaviorScore({
+      copiedSections,
+      pdfDownloaded,
+      timeOnResultsMs: ms,
+      feedbackEmoji: existing.feedbackEmoji || null,
+    });
+
+    await col.updateOne({ searchId }, { $set: { copiedSections, pdfDownloaded, timeOnResultsMs: ms, behaviorScore } });
+    updateLearningMemory(sessionId).catch(console.error);
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /api/learning-memory ─────────────────────────────────────────
+app.get("/api/learning-memory", async (req: Request, res: Response) => {
+  try {
+    const sessionId = (req.query.sessionId as string) || "";
+    if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+    const memory = await updateLearningMemory(sessionId);
+    res.json({ ok: true, data: memory });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── GET /onboarding ─────────────────────────────────────────────────
+app.get("/onboarding", (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "../../public/onboarding.html"));
+});
+
 // ── GET /api/health ─────────────────────────────────────────────────
+
 app.get("/api/health", (_req: Request, res: Response) => {
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
@@ -415,7 +632,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: "7.0.0",
+    version: "8.0.0",
     environment: process.env.VERCEL ? "vercel" : "local",
     searchEngine: "exa-deep-reasoning",
     keys: {

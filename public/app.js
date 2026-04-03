@@ -215,6 +215,10 @@ document.getElementById("agentForm").addEventListener("submit", function(e) {
   formData.append("hookStyle", document.getElementById("hookStyle").value);
   formData.append("goal", document.getElementById("goal").value);
   if (autoPilot) formData.append("useBusinessContext", "true");
+  // Pass sessionId for self-learning profile lookup
+  var sid = localStorage.getItem("stiche_session_id") || "";
+  if (!sid) { sid = "sess_" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("stiche_session_id", sid); }
+  formData.append("sessionId", sid);
   var igHandle = document.getElementById("instagramHandle").value.trim();
   if (igHandle) formData.append("instagramHandle", igHandle);
   if (selectedFile) formData.append("image", selectedFile);
@@ -244,7 +248,13 @@ document.getElementById("agentForm").addEventListener("submit", function(e) {
     .then(function(json) {
       resultData = json.data;
       for (var i = 1; i <= stepCount; i++) setStep(i, "done");
-      setTimeout(function() { loadingBox.classList.remove("active"); renderResults(resultData); }, 300);
+      // Generate a client-side searchId for feedback tracking
+      var searchId = "s_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      setTimeout(function() {
+        loadingBox.classList.remove("active");
+        renderResults(resultData);
+        if (window.initFeedbackTracker) window.initFeedbackTracker(searchId);
+      }, 300);
     })
     .catch(function(err) {
       loadingBox.classList.remove("active");

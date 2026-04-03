@@ -706,3 +706,85 @@ export async function runExaPinterestResearch(
 
   return sections.join("\n\n");
 }
+
+// ─── DYNAMIC QUERY RUNNER (from query planner) ───────────────────────
+/**
+ * Accepts planned searches from query-planner.ts instead of using
+ * hardcoded templates. This is the self-learning path — each run
+ * is unique, personalized to the specific business and search history.
+ */
+export async function runExaWithPlannedQueries(
+  plannedSearches: Array<{
+    query: string;
+    additionalQueries?: string[];
+    systemPrompt?: string;
+    includeDomains?: string[];
+    category?: "news" | "financial report" | "company";
+    purpose: string;
+  }>,
+): Promise<string> {
+  console.log(`  Exa: Running ${plannedSearches.length} DYNAMIC planned searches...`);
+  const startTime = Date.now();
+
+  const results = await Promise.all(
+    plannedSearches.map(s =>
+      exaDeepSearch({
+        query: s.query,
+        additionalQueries: s.additionalQueries,
+        systemPrompt: s.systemPrompt,
+        includeDomains: s.includeDomains,
+        category: s.category,
+        numResults: 20,
+        type: "deep-reasoning",
+        highlightMaxChars: 6000,
+        livecrawlTimeout: 5000,
+        subpages: 1,
+        extractLinks: 1,
+      })
+    )
+  );
+
+  const totalResults = results.reduce((sum, r) => sum + r.results.length, 0);
+  const elapsed = Date.now() - startTime;
+  console.log(`  Exa dynamic: ${totalResults} results in ${elapsed}ms`);
+
+  // Format same as runExaResearch but with dynamic section headers
+  const sections: string[] = [];
+
+  results.forEach((res, i) => {
+    const plan = plannedSearches[i];
+    if (res.results.length === 0) return;
+
+    sections.push(`\n╔══════════════════════════════════════════════════════════╗`);
+    sections.push(`║  DYNAMIC SEARCH ${i + 1}: ${plan.purpose.toUpperCase().padEnd(40)}║`);
+    sections.push(`╚══════════════════════════════════════════════════════════╝`);
+    sections.push(`(${res.results.length} sources | query: "${plan.query.slice(0, 80)}")\n`);
+
+    function formatResult(r: ExaResult): string {
+      const parts: string[] = [];
+      parts.push(`📄 [${r.title}](${r.url})`);
+      if (r.publishedDate) parts.push(`   Published: ${r.publishedDate}`);
+      if (r.summary && typeof r.summary === "object") {
+        if (r.summary.answer) parts.push(`   ✦ INSIGHT: ${r.summary.answer}`);
+        if (r.summary.priceData && r.summary.priceData !== "none found") parts.push(`   ✦ PRICES: ${r.summary.priceData}`);
+        if (r.summary.keyData && r.summary.keyData !== "none found") parts.push(`   ✦ DATA: ${r.summary.keyData}`);
+        if (r.summary.trendDirection) parts.push(`   ✦ TREND: ${r.summary.trendDirection}`);
+        if (r.summary.competitorData && r.summary.competitorData !== "none found") parts.push(`   ✦ COMPETITORS: ${r.summary.competitorData}`);
+        if (r.summary.strategyInsight) parts.push(`   ✦ STRATEGY: ${r.summary.strategyInsight}`);
+      } else if (typeof r.summary === "string" && r.summary) {
+        parts.push(`   Summary: ${r.summary}`);
+      }
+      if (r.highlights?.length) parts.push(`   Key excerpts: ${r.highlights.slice(0, 3).join(" │ ")}`);
+      if (r.text) parts.push(`   Content: ${r.text.slice(0, 2000)}`);
+      if (r.subpageContent) parts.push(`   Subpage: ${r.subpageContent.slice(0, 500)}`);
+      return parts.join("\n");
+    }
+
+    for (const r of res.results) {
+      sections.push(formatResult(r));
+    }
+  });
+
+  if (totalResults === 0) return "Dynamic Exa search returned no results. Generate analysis from domain knowledge.";
+  return sections.join("\n\n");
+}
